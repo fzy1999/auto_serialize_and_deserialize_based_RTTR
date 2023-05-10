@@ -1,6 +1,6 @@
 {
     "compdb_dir": "../build",
-    "header": "../src/cpp_generator/templates/header.inja",
+    "header": "../src/cpp_generator/templates/rttr_header.inja",
     "for_enum": "../src/cpp_generator/templates/registor.inja",
     "object": "../src/cpp_generator/templates/registor.inja",
     "input": [
