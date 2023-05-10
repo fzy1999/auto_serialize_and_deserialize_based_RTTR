@@ -1,0 +1,11 @@
+{
+    "compdb_dir": "../build",
+    "header": "../src/cpp_generator/templates/header.inja",
+    "for_enum": "../src/cpp_generator/templates/registor.inja",
+    "object": "../src/cpp_generator/templates/registor.inja",
+    "input": [
+        "../test/basic_test/initiate.h"
+    ],
+    "output_dir": "../include/generated",
+    "output_file": "registor.h"
+}

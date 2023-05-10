@@ -4,8 +4,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#define RTTR_REFLECT(...)
 using std::string;
 class SecondClass;
+RTTR_REFLECT(WithNonPublic)
 class BottomClass
 {
  public:
@@ -13,6 +15,7 @@ class BottomClass
   // SecondClass* second;
 };
 
+RTTR_REFLECT(WithNonPublic)
 class SecondClass
 {
  public:
@@ -24,6 +27,7 @@ class SecondClass
   RTTR_REGISTRATION_FRIEND
 };
 
+RTTR_REFLECT(WithNonPublic)
 class TopClass
 {
  public:

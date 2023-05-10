@@ -217,7 +217,7 @@ static void write_array_recursively(variant_sequential_view& view, Value& json_a
       auto sub_array_view = view.get_value(i).create_sequential_view();
       write_array_recursively(sub_array_view, json_index_value);
     } else if (json_index_value.IsObject()) {
-      auto _type = view.get_type();
+      auto _type = array_value_type;
       // variant var_tmp = view.get_value(i);
       // variant wrapped_var = var_tmp.extract_wrapped_value();
       // fromjson_recursively(wrapped_var, json_index_value);
