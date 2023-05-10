@@ -1,0 +1,3 @@
+[submodule "src/cpp_generator"]
+	path = src/cpp_generator
+	url = git@github.com:songxuanxuan/cpp_generator.git
