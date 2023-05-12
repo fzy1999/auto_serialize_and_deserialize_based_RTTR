@@ -1,5 +1,4 @@
 #pragma once
-#include "myrttr/registration"
 #include "myrttr/registration_friend"
 #include <string>
 #include <unordered_map>
