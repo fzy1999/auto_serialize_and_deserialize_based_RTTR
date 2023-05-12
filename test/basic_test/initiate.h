@@ -1,5 +1,6 @@
 #pragma once
 #include "myrttr/registration_friend"
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,17 +27,30 @@ class SecondClass
   RTTR_REGISTRATION_FRIEND
 };
 
+template <typename T>
+class TpltClass
+{
+  RTTR_REGISTRATION_FRIEND
+  T num;
+};
+
 RTTR_REFLECT(WithNonPublic)
 class TopClass
 {
  public:
+  class Top
+  {
+    RTTR_REGISTRATION_FRIEND
+    int x = 998;
+  };
   void set_second(SecondClass* _second) { second = _second; }
   std::vector<SecondClass*> secplist;
   SecondClass* second;
+  std::vector<Top> top;
+  TpltClass<int32_t> tplt;
 
  private:
   string name = "top";
   int32_t x = 99;
-
   RTTR_REGISTRATION_FRIEND
 };

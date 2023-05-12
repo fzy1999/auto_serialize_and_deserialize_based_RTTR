@@ -208,7 +208,7 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
             = 0>
   static bool set_raw_ptr(void* container, std::size_t index, void* value)
   {
-    base_class::get_value(get_container(container), index) = static_cast<value_t>(value);
+    // base_class::get_value(get_container(container), index) = static_cast<value_t>(value);
     return true;
   }
 

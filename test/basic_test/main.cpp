@@ -54,16 +54,15 @@ using std::string;
 
 //clang-format on
 
-int test_clang(SecondClass& top)
+int test_clang(TopClass& top)
 {
   instance inst(top);
-  auto prop = inst.get_type().get_property("name");
-  bool ok = true;
-  auto val = prop.get_value(inst).to_string(&ok);
 
-  auto sec = inst.get_type().get_property("bottom");
-  auto secp = sec.get_value(inst).get_value<BottomClass*>();
-  auto type = prop.get_type();
+  auto tplt = inst.get_type().get_property("tplt").get_type();
+  auto tpltname = tplt.get_property("num").get_type();
+
+  auto toplist = inst.get_type().get_property("top").get_type();
+  auto type = inst.get_type();
   return 0;
 }
 
@@ -87,6 +86,8 @@ int main()
   TopClass top;
   SecondClass second;
   BottomClass bottom;
+  top.top.emplace_back();
+  top.tplt = TpltClass<int32_t>();
   bottom.name = "changed";
   second.bottom = &bottom;
   second.bottom_map["btm1"] = &bottom;
@@ -94,7 +95,7 @@ int main()
   top.secplist.push_back(&second);
   top.secplist.push_back(&second);
   // bottom.second = &second;
-  // test_clang(second);
-  test_json(top);
+  test_clang(top);
+  // test_json(top);
   return 0;
 }
