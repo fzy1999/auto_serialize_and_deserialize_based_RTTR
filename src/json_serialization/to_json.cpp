@@ -1,30 +1,3 @@
-/************************************************************************************
- *                                                                                   *
- *   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
- *                                                                                   *
- *   This file is part of RTTR (Run Time Type Reflection)                            *
- *   License: MIT License                                                            *
- *                                                                                   *
- *   Permission is hereby granted, free of charge, to any person obtaining           *
- *   a copy of this software and associated documentation files (the "Software"),    *
- *   to deal in the Software without restriction, including without limitation       *
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
- *   and/or sell copies of the Software, and to permit persons to whom the           *
- *   Software is furnished to do so, subject to the following conditions:            *
- *                                                                                   *
- *   The above copyright notice and this permission notice shall be included in      *
- *   all copies or substantial portions of the Software.                             *
- *                                                                                   *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
- *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
- *   SOFTWARE.                                                                       *
- *                                                                                   *
- *************************************************************************************/
-
 #include "common.h"
 #include "myrttr/variant.h"
 #include "myrttr/type"
@@ -175,7 +148,6 @@ static void write_array(const variant_sequential_view& view, PrettyWriter<String
         write_atomic_types_to_json(value_type, wrapped_var, writer);
       } else  // object
       {
-        // TODO(): 处理id
         auto id = to_json_recursively(wrapped_var);
         write_IdHolder(id, writer);
       }
@@ -229,6 +201,8 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
     write_array(var.create_sequential_view(), writer);
   } else if (var.is_associative_container()) {
     write_associative_container(var.create_associative_view(), writer);
+  } else if (!var.get_type().is_pointer()) {
+    to_json_recursively(var, writer);
   } else {
     // pointer
     auto child_props = is_wrapper ? wrapped_type.get_properties() : value_type.get_properties();
@@ -268,7 +242,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   PrettyWriter<StringBuffer> writer(sb);
   writer.StartObject();
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
-  debug_log(2, obj.get_type().get_name().to_string());
+  debug_log(1, obj.get_type().get_name().to_string());
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     if (prop.get_metadata("NO_SERIALIZE"))
@@ -292,8 +266,10 @@ ID_TYPE to_json_recursively(const instance& obj2)
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
-  auto val = sb.GetString();
-  aux->hset(classname, cid, val);
+  auto val = string(sb.GetString());
+  if (!aux->hset(classname, cid, sb.GetString())) {
+    std::cerr << "error : hset overwrite with key " + classname << "\n";
+  }
   return cid;
 }
 

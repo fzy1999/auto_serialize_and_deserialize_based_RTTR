@@ -332,7 +332,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
   // get this json from redis
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
-  debug_log(2, "parsing class: " + classname);
+  debug_log(1, "parsing class: " + classname);
   string json(aux->hget(classname, cid));
   Document json_object;
 

@@ -20,12 +20,14 @@ std::shared_ptr<RedisAux> RedisAux::_redis_aux = nullptr;
 //   return id;
 // }
 
-void RedisAux::hset(const string& key, const string& field, const string& value)
+bool RedisAux::hset(const string& key, const string& field, const string& value)
 {
+  bool ok = false;
   try {
-    _redis->hset(key, field, value);
+    ok = _redis->hset(key, field, value);
 
   } catch (const Error& e) {
     std::cerr << "Redis exception: " << e.what() << std::endl;
   }
+  return ok;
 }

@@ -26,7 +26,7 @@ class RedisAux
 
   // TODO() : fuilure and competition
   string get(const string& key) { return _redis->get(key).value(); }
-  void hset(const string& key, const string& field, const string& value);
+  bool hset(const string& key, const string& field, const string& value);
   string hget(const string& key, const string& field) { return _redis->hget(key, field).value(); }
   // ID_TYPE get_increased_class_key(const string& classname, const string& session);
   RedisAux() = default;
