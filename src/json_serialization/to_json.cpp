@@ -25,6 +25,7 @@
  *                                                                                   *
  *************************************************************************************/
 
+#include "common.h"
 #include "myrttr/variant.h"
 #include "myrttr/type"
 #include <array>
@@ -267,7 +268,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   PrettyWriter<StringBuffer> writer(sb);
   writer.StartObject();
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
-
+  debug_log(2, obj.get_type().get_name().to_string());
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     if (prop.get_metadata("NO_SERIALIZE"))
@@ -286,13 +287,13 @@ ID_TYPE to_json_recursively(const instance& obj2)
   }
 
   writer.EndObject();
-  std::cout << sb.GetString() << "\n";
+  // std::cout << sb.GetString() << "\n";
   ///// redis storing  /////
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
-  // auto theid = aux->get_increased_class_key(classname, "fack session");
-  aux->hset(classname, cid, sb.GetString());
+  auto val = sb.GetString();
+  aux->hset(classname, cid, val);
   return cid;
 }
 

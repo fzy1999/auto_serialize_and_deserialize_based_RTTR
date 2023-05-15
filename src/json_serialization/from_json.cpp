@@ -49,7 +49,6 @@
 using namespace rapidjson;
 using namespace rttr;
 using std::string;
-#define DEBUG 2
 namespace {
 std::unordered_map<ID_TYPE, variant> g_key_storage;
 class GKeyMutex
@@ -83,13 +82,6 @@ bool set_g_key(const ID_TYPE& cid, const variant& var)
   return false;
 }
 /////////////////////////////////////////////////////////////////////////////////////////
-
-constexpr void debug_log(int level, const string& log)
-{
-  if (level <= DEBUG) {
-    std::cout << "-- " << log << '\n';
-  }
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
