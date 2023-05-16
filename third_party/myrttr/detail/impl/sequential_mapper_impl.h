@@ -191,7 +191,10 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
             = 0>
   static bool set_value(void* container, std::size_t index, argument& value)
   {
-    if (value.get_type() == ::rttr::type::get<value_t>()) {
+    auto vt = value.get_type();
+    auto vv = ::rttr::type::get<value_t>();
+    // auto is_derived = vt.is_derived_from(vv);
+    if (value.get_type() == ::rttr::type::get<value_t>() || vt.is_derived_from(vv)) {
       // auto xx = value.get_value<value_t>();
       base_class::get_value(get_container(container), index) = value.get_value<value_t>();
       return true;

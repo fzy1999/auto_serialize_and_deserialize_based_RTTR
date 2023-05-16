@@ -1,4 +1,5 @@
 #include "common.h"
+#include "myrttr/instance.h"
 #include "myrttr/variant.h"
 #include "myrttr/type"
 #include <array>
@@ -22,6 +23,15 @@ using namespace rttr;
 
 namespace {
 
+/////////////////////////////////////////////////////////////////////////////////////////
+
+inline type get_wrapped_type(const type& type2)
+{
+  return type2.is_wrapper() ? type2.get_wrapped_type().get_raw_type() : type2.get_raw_type();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 std::map<const void*, ID_TYPE> g_key_storage;
 class GKeyMutex
 {
@@ -40,8 +50,14 @@ ID_TYPE generate_g_key()
   uuid_unparse(uuid, str);
   return std::string(str);
 }
-bool get_g_key(const void* key, ID_TYPE& cid)
+bool get_g_key(const instance& inst, ID_TYPE& cid)
 {
+  void* key;
+  if (inst.get_derived_type().is_wrapper()) {
+    key = inst.get_wrapped_instance().get_object_pointer();
+  } else {
+    key = inst.get_object_pointer();
+  }
   GKeyMutex mutex;
   if (!g_key_storage.contains(key)) {
     cid = generate_g_key();
@@ -73,9 +89,16 @@ void to_json_recursively(const instance& obj, PrettyWriter<StringBuffer>& writer
 
 ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer);
 
-void write_IdHolder(io::IdHolder holder, PrettyWriter<StringBuffer>& writer)
+void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringBuffer>& writer)
 {
-  // io::IdHolder id_holder{cid};
+  auto derive_type = instance(var).get_derived_type();
+  if (derive_type.is_wrapper()) {
+    derive_type = derive_type.get_wrapped_type();
+  }
+  if (derive_type.is_pointer()) {
+    derive_type = derive_type.get_raw_type();
+  }
+  io::IdHolder holder{cid, derive_type.get_name().to_string()};
   to_json_recursively(holder, writer);
 }
 
@@ -141,19 +164,16 @@ static void write_array(const variant_sequential_view& view, PrettyWriter<String
     if (item.is_sequential_container()) {
       write_array(item.create_sequential_view(), writer);
     } else {
-      auto xx = item.to_string();  // debug
+      // auto xx = item.to_string();  // debug
       variant wrapped_var = item.extract_wrapped_value();
       type value_type = wrapped_var.get_type();
       if (value_type.is_arithmetic() || value_type == type::get<std::string>() || value_type.is_enumeration()) {
         write_atomic_types_to_json(value_type, wrapped_var, writer);
       } else  // object
       {
+        auto itype = item.get_type();
         auto id = to_json_recursively(wrapped_var);
-        write_IdHolder(
-            {
-                id,
-            },
-            writer);
+        write_IdHolder(id, wrapped_var, writer);
       }
     }
   }
@@ -181,7 +201,7 @@ static void write_associative_container(const variant_associative_view& view, Pr
       write_variant(item.first, writer);
 
       writer.String(value_name.data(), static_cast<rapidjson::SizeType>(value_name.length()), false);
-
+      auto iv = item.second.get_type();
       write_variant(item.second, writer);
 
       writer.EndObject();
@@ -205,16 +225,16 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
     write_array(var.create_sequential_view(), writer);
   } else if (var.is_associative_container()) {
     write_associative_container(var.create_associative_view(), writer);
-  } else if (!var.get_type().is_pointer()) {
+  } else if (!wrapped_type.is_pointer()) {
+    // object
     to_json_recursively(var, writer);
   } else {
     // pointer
     auto child_props = is_wrapper ? wrapped_type.get_properties() : value_type.get_properties();
     if (!child_props.empty()) {
-      // TODO(): 处理id
       id = to_json_recursively(var);
-      write_IdHolder(id, writer);
-      // writer.String(std::to_string(id));
+      write_IdHolder(id, var, writer);
+
     } else {
       bool ok = false;
       auto text = var.to_string(&ok);
@@ -237,8 +257,7 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 ID_TYPE to_json_recursively(const instance& obj2)
 {
   ID_TYPE cid;
-  auto op = obj2.get_object_pointer();
-  if (get_g_key(obj2.get_object_pointer(), cid)) {
+  if (get_g_key(obj2, cid)) {
     return cid;
   }
 

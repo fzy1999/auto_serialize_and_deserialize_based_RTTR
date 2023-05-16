@@ -1,30 +1,4 @@
-/************************************************************************************
- *                                                                                   *
- *   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
- *                                                                                   *
- *   This file is part of RTTR (Run Time Type Reflection)                            *
- *   License: MIT License                                                            *
- *                                                                                   *
- *   Permission is hereby granted, free of charge, to any person obtaining           *
- *   a copy of this software and associated documentation files (the "Software"),    *
- *   to deal in the Software without restriction, including without limitation       *
- *   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
- *   and/or sell copies of the Software, and to permit persons to whom the           *
- *   Software is furnished to do so, subject to the following conditions:            *
- *                                                                                   *
- *   The above copyright notice and this permission notice shall be included in      *
- *   all copies or substantial portions of the Software.                             *
- *                                                                                   *
- *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
- *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
- *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
- *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
- *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
- *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
- *   SOFTWARE.                                                                       *
- *                                                                                   *
- *************************************************************************************/
-
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -147,7 +121,9 @@ variant restore_object(const rttr::type& t, rapidjson::GenericValue<rapidjson::U
   io::IdHolder idholder;  // for getting cid
   fromjson_recursively(idholder, json_value);
   auto theid = idholder.id;
-  auto [ready, var] = malloc_class(t, theid);  //!!!!
+  rttr::type derive = rttr::type::get_by_name(idholder.derive_type);
+  assert(derive.is_derived_from(t));
+  auto [ready, var] = malloc_class(derive, theid);  //!!!!
   if (!ready) {
     fromjson_recursively(var, theid);
   }
@@ -231,6 +207,7 @@ variant extract_value(Value::MemberIterator& itr, const type& t)
 {
   auto& json_value = itr->value;
   variant extracted_value = extract_basic_types(json_value);
+  // if object is not pointer, then return true
   const bool could_convert = extracted_value.convert(t);
   if (!could_convert) {
     if (json_value.IsObject()) {

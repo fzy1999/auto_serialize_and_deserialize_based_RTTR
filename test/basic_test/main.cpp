@@ -9,6 +9,7 @@
 #include "myrttr/registration_friend"
 #include "myrttr/type"
 #include "myrttr/instance.h"
+#include "myrttr/type.h"
 #include "myrttr/variant.h"
 #include <ostream>
 #include <string>
@@ -68,7 +69,7 @@ int test_clang(TopClass& top)
 
 int test_json(TopClass& top)
 {
-  auto topid = io::to_json(top);
+  auto topid = io::to_json(top.second);
   if (topid == "0") {
     cout << "to_json error \n";
     return 1;
@@ -76,8 +77,23 @@ int test_json(TopClass& top)
   // cout << topid << endl;
   TopClass cli_top(99);
   SecondClass cli_sec;
-  io::from_key(topid, cli_top);
-  // auto seclp = cli_top.secplist[0]->name;
+  io::from_key(topid, cli_sec);
+  auto* bot_base = dynamic_cast<BottomClass*>(cli_sec.bases[1]);
+  return 0;
+}
+
+int test_base(SecondClass& second)
+{
+  instance inst(second);
+  auto bases = inst.get_derived_type().get_property("bases").get_value(inst);
+  auto sect = bases.get_type();
+  auto view = bases.create_sequential_view();
+  for (const auto& item : view) {
+    auto it = item.get_type().get_wrapped_type().get_raw_type();
+    auto det = instance(item).get_wrapped_instance().get_derived_type();
+    auto vt = item.can_convert(rttr::type::get_by_name("BottomClass"));
+    auto x = vt;
+  }
   return 0;
 }
 
@@ -86,16 +102,21 @@ int main()
   TopClass top(99);
   SecondClass second;
   BottomClass bottom;
+  Base base;
   top.top.emplace_back();
   top.tplt = TpltClass<int32_t>();
   bottom.name = "changed";
+  bottom.bx = 66;
   second.bottom = &bottom;
   second.bottom_map["btm1"] = &bottom;
   top.set_second(&second);
   top.secplist.push_back(&second);
   top.secplist.push_back(&second);
+  second.bases.push_back(&base);
+  second.bases.push_back(&bottom);
   // bottom.second = &second;
-  test_clang(top);
-  // test_json(top);
+  // test_clang(top);
+  test_json(top);
+  // test_base(second);
   return 0;
 }
