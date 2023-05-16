@@ -148,7 +148,6 @@ static void write_array(const variant_sequential_view& view, PrettyWriter<String
         write_atomic_types_to_json(value_type, wrapped_var, writer);
       } else  // object
       {
-        // TODO(): 处理id
         auto id = to_json_recursively(wrapped_var);
         write_IdHolder(
             {
@@ -206,6 +205,8 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
     write_array(var.create_sequential_view(), writer);
   } else if (var.is_associative_container()) {
     write_associative_container(var.create_associative_view(), writer);
+  } else if (!var.get_type().is_pointer()) {
+    to_json_recursively(var, writer);
   } else {
     // pointer
     auto child_props = is_wrapper ? wrapped_type.get_properties() : value_type.get_properties();
@@ -245,7 +246,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   PrettyWriter<StringBuffer> writer(sb);
   writer.StartObject();
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
-  debug_log(2, obj.get_type().get_name().to_string());
+  debug_log(1, obj.get_type().get_name().to_string());
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     if (prop.get_metadata("NO_SERIALIZE"))
@@ -269,8 +270,10 @@ ID_TYPE to_json_recursively(const instance& obj2)
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
-  auto val = sb.GetString();
-  aux->hset(classname, cid, val);
+  auto val = string(sb.GetString());
+  if (!aux->hset(classname, cid, sb.GetString())) {
+    std::cerr << "error : hset overwrite with key " + classname << "\n";
+  }
   return cid;
 }
 

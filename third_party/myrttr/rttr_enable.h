@@ -83,7 +83,7 @@
 #define RTTR_ENABLE(...)                                                                  \
  public:                                                                                  \
   RTTR_BEGIN_DISABLE_OVERRIDE_WARNING                                                     \
-  virtual RTTR_INLINE ::rttr::type get_type() const                                       \
+  virtual RTTR_INLINE ::rttr::type _get_type() const                                      \
   {                                                                                       \
     return ::rttr::detail::get_type_from_instance(this);                                  \
   }                                                                                       \
