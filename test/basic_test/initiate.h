@@ -1,5 +1,6 @@
 #pragma once
 #include "myrttr/registration_friend"
+#include "myrttr/rttr_enable.h"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -8,8 +9,16 @@
 using std::string;
 class SecondClass;
 RTTR_REFLECT(WithNonPublic)
-class BottomClass
+class Base
 {
+  RTTR_ENABLE()
+ public:
+  int bx = 1;
+};
+RTTR_REFLECT(WithNonPublic)
+class BottomClass : public Base
+{
+  RTTR_ENABLE(Base)
  public:
   string name = "Buttom";
   // SecondClass* second;
@@ -23,6 +32,7 @@ class SecondClass
   string name = "Second";
   int32_t y = 88;
   std::unordered_map<string, BottomClass*> bottom_map;
+  std::vector<Base*> bases;
   // RTTR_ENABLE()
   RTTR_REGISTRATION_FRIEND
 };
@@ -38,6 +48,8 @@ RTTR_REFLECT(WithNonPublic)
 class TopClass
 {
  public:
+  TopClass() = default;
+  TopClass(int _x) : x(_x){};
   class Top
   {
     RTTR_REGISTRATION_FRIEND

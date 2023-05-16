@@ -8,6 +8,7 @@ using ID_TYPE = std::string;
 struct IdHolder
 {
   ID_TYPE id;
+  std::string derive_type;
 };
 }  // namespace io
 

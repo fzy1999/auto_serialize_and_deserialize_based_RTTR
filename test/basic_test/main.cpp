@@ -74,7 +74,7 @@ int test_json(TopClass& top)
     return 1;
   }
   // cout << topid << endl;
-  TopClass cli_top;
+  TopClass cli_top(99);
   SecondClass cli_sec;
   io::from_key(topid, cli_top);
   // auto seclp = cli_top.secplist[0]->name;
@@ -83,7 +83,7 @@ int test_json(TopClass& top)
 
 int main()
 {
-  TopClass top;
+  TopClass top(99);
   SecondClass second;
   BottomClass bottom;
   top.top.emplace_back();
