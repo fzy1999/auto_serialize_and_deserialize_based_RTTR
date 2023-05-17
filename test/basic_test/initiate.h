@@ -43,6 +43,7 @@ class SecondClass
 template <typename T>
 class TpltClass
 {
+ public:
   RTTR_REGISTRATION_FRIEND
   T num;
 };

@@ -9,6 +9,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #define RAPIDJSON_HAS_STDSTRING 1
@@ -23,6 +24,9 @@ using namespace rapidjson;
 using namespace rttr;
 
 namespace {
+void to_json_recursively(const instance& obj, PrettyWriter<StringBuffer>& writer);
+
+ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -83,16 +87,6 @@ bool get_g_key(const instance& inst, ID_TYPE& cid)
 ID_TYPE to_json_recursively(const instance& obj);
 /////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * @brief for writer passing in
- *
- * @param obj
- * @param writer
- */
-void to_json_recursively(const instance& obj, PrettyWriter<StringBuffer>& writer);
-
-ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer);
-
 void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringBuffer>& writer)
 {
   if (cid == std::nullopt) {
@@ -110,6 +104,46 @@ void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringB
   }
   io::IdHolder holder{*cid, derive_type.get_name().to_string()};
   to_json_recursively(holder, writer);
+}
+
+bool is_optional(const type& t)
+{
+  return t.get_name().to_string().find("optional") != string::npos;
+}
+
+bool write_optinal_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer)
+{
+  if (is_optional(t)) {
+    if (var.is_type<std::optional<bool>>())
+      writer.Bool(var.get_value<bool>());
+    else if (var.is_type<std::optional<char>>())
+      writer.Bool(var.get_value<char>());
+    else if (var.is_type<std::optional<int8_t>>())
+      writer.Int(var.get_value<int8_t>());
+    else if (var.is_type<std::optional<int16_t>>())
+      writer.Int(var.get_value<int16_t>());
+    else if (var.is_type<std::optional<int32_t>>())
+      writer.Int(var.get_value<int32_t>());
+    else if (var.is_type<std::optional<int64_t>>())
+      writer.Int64(var.get_value<int64_t>());
+    else if (var.is_type<std::optional<uint8_t>>())
+      writer.Uint(var.get_value<uint8_t>());
+    else if (var.is_type<std::optional<uint16_t>>())
+      writer.Uint(var.get_value<uint16_t>());
+    else if (var.is_type<std::optional<uint32_t>>())
+      writer.Uint(var.get_value<uint32_t>());
+    else if (var.is_type<std::optional<uint64_t>>())
+      writer.Uint64(var.get_value<uint64_t>());
+    else if (var.is_type<std::optional<float>>())
+      writer.Double(var.get_value<float>());
+    else if (var.is_type<std::optional<double>>())
+      writer.Double(var.get_value<double>());
+    else
+      return false;
+
+    return true;
+  }
+  return false;
 }
 
 bool write_atomic_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer)
@@ -159,6 +193,8 @@ bool write_atomic_types_to_json(const type& t, const variant& var, PrettyWriter<
   } else if (t == type::get<std::string>()) {
     // auto str = var.to_string();
     writer.String(var.to_string());
+    return true;
+  } else if (write_optinal_types_to_json(t, var, writer)) {
     return true;
   }
 
@@ -223,6 +259,24 @@ static void write_associative_container(const variant_associative_view& view, Pr
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+string get_optional_type(const string& str)
+{
+  size_t start_pos = str.find("<");
+  size_t end_pos = str.find(">", start_pos);
+  return str.substr(start_pos + 1, end_pos - start_pos - 1);
+}
+
+variant strip_optional(const variant& var)
+{
+  auto name = get_optional_type(var.get_type().get_name().to_string());
+  variant copied = var;
+  auto striped = type::get_by_name(name).create();
+  striped.swap(copied);
+  return std::move(striped);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 {
   auto value_type = var.get_type();
@@ -236,8 +290,16 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
   } else if (var.is_associative_container()) {
     write_associative_container(var.create_associative_view(), writer);
   } else if (!wrapped_type.is_pointer()) {
-    // object
+    // if (is_optional(wrapped_type)) {
+    //   // optional
+    //   auto striped = strip_optional(var);
+    //   to_json_recursively(striped, writer);
+    // } else {
+    //   // object
+    //   to_json_recursively(var, writer);
+    // }
     to_json_recursively(var, writer);
+
   } else {
     // pointer
     auto child_props = is_wrapper ? wrapped_type.get_properties() : value_type.get_properties();
@@ -283,7 +345,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   for (auto prop : prop_list) {
     if (prop.get_metadata("NO_SERIALIZE"))
       continue;
-
+    debug_log(2, "dealing prop: " + prop.get_type().get_name().to_string());
     variant prop_value = prop.get_value(obj);
     if (!prop_value)
       continue;  // cannot serialize, because we cannot retrieve the value
