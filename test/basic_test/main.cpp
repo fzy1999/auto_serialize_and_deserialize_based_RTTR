@@ -7,10 +7,12 @@
 #include "myrttr/property.h"
 #include "myrttr/registration"
 #include "myrttr/registration_friend"
+#include "myrttr/string_view.h"
 #include "myrttr/type"
 #include "myrttr/instance.h"
 #include "myrttr/type.h"
 #include "myrttr/variant.h"
+#include <optional>
 #include <ostream>
 #include <string>
 #include <system_error>
@@ -29,28 +31,16 @@ using std::string;
 
 ///////////////////////////
 
-// clang-format false
-// RTTR_REGISTRATION
-// {
-//   // serialization
-//   rttr::registration::class_<io::IdHolder>("IdHolder").property("id", &io::IdHolder::id);
-//   // test
-//   registration::class_<SecondClass>("SecondClass")
-//       .constructor<>()
-//       .property("secname", &SecondClass::name)
-//       .property("y", &SecondClass::y)
-//       .property("bottom_map", &SecondClass::bottom_map)
-//       .property("bottom", &SecondClass::bottom);
-//   registration::class_<TopClass>("TopClass")
-//       .constructor<>()
-//       .property("topname", &TopClass::name)
-//       .property("x", &TopClass::x)
-//       .property("secondP", &TopClass::second)
-//       .property("secplist", &TopClass::secplist)
-//       .method("set_second", &TopClass::set_second);
-//   registration::class_<BottomClass>("BottomClass").constructor<>().property("btmname", &BottomClass::name);
-//   // .property("secname", &BottomClass::second);
-// }
+template <typename T>
+struct is_optional : std::false_type
+{
+};
+
+template <typename T>
+struct is_optional<std::optional<T>> : std::true_type
+{
+};
+
 #include "generated/registor.h"
 
 //clang-format on
@@ -97,16 +87,22 @@ int test_base(SecondClass& second)
   return 0;
 }
 
+string get_optional_type(string str)
+{
+  size_t start_pos = str.find("<");
+  size_t end_pos = str.find(">", start_pos);
+  return str.substr(start_pos + 1, end_pos - start_pos - 1);
+}
+
 int test_optional(SecondClass& second)
 {
   instance inst(second);
   auto opt = inst.get_derived_type().get_property("opt_bot");
-  auto otype = opt.get_type();
-  auto oval = opt.get_value(inst).get_value<BottomClass>();
-  auto opt_int = inst.get_derived_type().get_property("opt_int");
+  auto opt_inst = instance(opt).get_object_pointer();
+  auto bot = static_cast<BottomClass*>(opt_inst);
 
-  auto otype_int = opt_int.get_type();
-  auto oval_int = opt_int.get_value(inst).get_value<int>();
+  auto otype_name = get_optional_type(opt.get_type().get_name().to_string());
+  auto t = rttr::type::get_by_name(otype_name);
   return 0;
 }
 
@@ -117,7 +113,7 @@ int main()
   BottomClass bottom;
   Base base;
   top.top.emplace_back();
-  top.tplt = TpltClass<int32_t>();
+  top.tplt = TpltClass<int32_t>{99};
   bottom.name = "changed";
   bottom.bx = 66;
   second.bottom = &bottom;
@@ -128,6 +124,7 @@ int main()
   second.bases.push_back(&base);
   second.bases.push_back(&bottom);
   second.opt_bot = bottom;
+  second.opt_int = 996;
   // bottom.second = &second;
   // test_clang(top);
   // test_json(top);
