@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,9 @@ inline type get_wrapped_type(const type& type2)
 /////////////////////////////////////////////////////////////////////////////////////////
 
 std::map<const void*, ID_TYPE> g_key_storage;
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 class GKeyMutex
 {
   std::mutex _g_key_mutex;
@@ -91,6 +95,12 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer);
 
 void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringBuffer>& writer)
 {
+  if (cid == std::nullopt) {
+    // null pointer
+    io::NullHolder nullholder;
+    to_json_recursively(nullholder, writer);
+    return;
+  }
   auto derive_type = instance(var).get_derived_type();
   if (derive_type.is_wrapper()) {
     derive_type = derive_type.get_wrapped_type();
@@ -98,7 +108,7 @@ void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringB
   if (derive_type.is_pointer()) {
     derive_type = derive_type.get_raw_type();
   }
-  io::IdHolder holder{cid, derive_type.get_name().to_string()};
+  io::IdHolder holder{*cid, derive_type.get_name().to_string()};
   to_json_recursively(holder, writer);
 }
 
@@ -256,6 +266,9 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 
 ID_TYPE to_json_recursively(const instance& obj2)
 {
+  if (!obj2.is_valid()) {
+    return std::nullopt;
+  }
   ID_TYPE cid;
   if (get_g_key(obj2, cid)) {
     return cid;
@@ -289,9 +302,10 @@ ID_TYPE to_json_recursively(const instance& obj2)
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
-  auto val = string(sb.GetString());
-  if (!aux->hset(classname, cid, sb.GetString())) {
+  if (!aux->hset(classname, *cid, sb.GetString())) {
     std::cerr << "error : hset overwrite with key " + classname << "\n";
+  } else {
+    debug_log(1, "writed:" + classname);
   }
   return cid;
 }
@@ -344,7 +358,7 @@ ID_TYPE to_json(rttr::instance obj)
   // 如果不存在, 生成cid存入map, 并继续序列化
   auto id = to_json_recursively(obj);
 
-  return id;
+  return *id;
   // return sb.GetString();
 }
 

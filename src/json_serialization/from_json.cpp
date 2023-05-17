@@ -24,7 +24,7 @@ using namespace rapidjson;
 using namespace rttr;
 using std::string;
 namespace {
-std::unordered_map<ID_TYPE, variant> g_key_storage;
+std::unordered_map<string, variant> g_key_storage;
 class GKeyMutex
 {
   std::mutex _g_key_mutex;
@@ -37,8 +37,8 @@ class GKeyMutex
 auto get_g_key(const ID_TYPE& cid)
 {
   GKeyMutex mutex;
-  if (g_key_storage.contains(cid)) {
-    variant var = g_key_storage[cid];
+  if (g_key_storage.contains(*cid)) {
+    variant var = g_key_storage[*cid];
     return std::make_pair(true, var);
   }
   return std::make_pair(false, variant());
@@ -47,9 +47,9 @@ auto get_g_key(const ID_TYPE& cid)
 bool set_g_key(const ID_TYPE& cid, const variant& var)
 {
   GKeyMutex mutex;
-  if (!g_key_storage.contains(cid)) {
+  if (!g_key_storage.contains(*cid)) {
     if (var.is_valid()) {
-      g_key_storage[cid] = var;
+      g_key_storage[*cid] = var;
       return true;
     }
   }
@@ -310,7 +310,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   debug_log(1, "parsing class: " + classname);
-  string json(aux->hget(classname, cid));
+  string json(aux->hget(classname, *cid));
   Document json_object;
 
   if (json_object.Parse(json.c_str()).HasParseError()) {

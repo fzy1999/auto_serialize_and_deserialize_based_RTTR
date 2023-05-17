@@ -5,6 +5,9 @@
 
 namespace io {
 using ID_TYPE = std::string;
+struct NullHolder
+{
+};
 struct IdHolder
 {
   ID_TYPE id;

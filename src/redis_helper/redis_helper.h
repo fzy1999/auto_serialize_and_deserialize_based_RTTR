@@ -5,12 +5,13 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace sw::redis;
 using std::string;
 const string REDIS_ADDRESS = "tcp://127.0.0.1:6380";
-using ID_TYPE = string;
+using ID_TYPE = std::optional<string>;
 
 class RedisAux
 {
