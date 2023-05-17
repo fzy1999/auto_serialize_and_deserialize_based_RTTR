@@ -97,6 +97,19 @@ int test_base(SecondClass& second)
   return 0;
 }
 
+int test_optional(SecondClass& second)
+{
+  instance inst(second);
+  auto opt = inst.get_derived_type().get_property("opt_bot");
+  auto otype = opt.get_type();
+  auto oval = opt.get_value(inst).get_value<BottomClass>();
+  auto opt_int = inst.get_derived_type().get_property("opt_int");
+
+  auto otype_int = opt_int.get_type();
+  auto oval_int = opt_int.get_value(inst).get_value<int>();
+  return 0;
+}
+
 int main()
 {
   TopClass top(99);
@@ -114,9 +127,11 @@ int main()
   top.secplist.push_back(&second);
   second.bases.push_back(&base);
   second.bases.push_back(&bottom);
+  second.opt_bot = bottom;
   // bottom.second = &second;
   // test_clang(top);
-  test_json(top);
+  // test_json(top);
   // test_base(second);
+  test_optional(second);
   return 0;
 }

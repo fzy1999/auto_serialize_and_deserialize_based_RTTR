@@ -2,6 +2,7 @@
 #include "myrttr/registration_friend"
 #include "myrttr/rttr_enable.h"
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -33,6 +34,8 @@ class SecondClass
   int32_t y = 88;
   std::unordered_map<string, BottomClass*> bottom_map;
   std::vector<Base*> bases;
+  std::optional<BottomClass> opt_bot;
+  std::optional<int> opt_int;
   // RTTR_ENABLE()
   RTTR_REGISTRATION_FRIEND
 };
