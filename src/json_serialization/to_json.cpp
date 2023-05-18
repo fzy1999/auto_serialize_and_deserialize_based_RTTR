@@ -371,10 +371,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   if (!aux->hset(classname, *cid, sb.GetString())) {
     std::cerr << "error : hset overwrite with key " + classname << "\n";
   } else {
-    for (int i = 0; i < level; ++i) {
-      std::cout << '-';
-    }
-    debug_log(0, "writed:" + classname);
+    debug_log(0, "writed:" + classname + "in level:" + std::to_string(level));
   }
   return cid;
 }
