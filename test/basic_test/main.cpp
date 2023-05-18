@@ -125,6 +125,8 @@ int main()
   second.opt_bot = bottom;
   second.opt_int = 996;
   second.bot_inst.name = "ccchanged";
+  second.bot_inst.second = nullptr;
+  second.bottom->second = &second;
   // bottom.second = &second;
   // test_clang(top);
   test_json(top);

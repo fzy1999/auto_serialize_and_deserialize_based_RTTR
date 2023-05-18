@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string>
-#define DEBUG 0
+#define DEBUG 2
 
 namespace io {
 using ID_TYPE = std::string;

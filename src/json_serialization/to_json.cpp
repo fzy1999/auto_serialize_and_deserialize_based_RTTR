@@ -60,6 +60,9 @@ ID_TYPE generate_g_key()
 }
 bool get_g_key(const instance& inst, ID_TYPE& cid)
 {
+  if (!inst.is_valid()) {
+    return true;
+  }
   void* key;
   if (inst.get_derived_type().is_wrapper()) {
     key = inst.get_wrapped_instance().get_object_pointer();
@@ -371,7 +374,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   if (!aux->hset(classname, *cid, sb.GetString())) {
     std::cerr << "error : hset overwrite with key " + classname << "\n";
   } else {
-    debug_log(0, "writed:" + classname + "in level:" + std::to_string(level));
+    debug_log(1, "writed:" + classname + " in level:" + std::to_string(level));
   }
   return cid;
 }

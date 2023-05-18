@@ -22,7 +22,7 @@ class BottomClass : public Base
   RTTR_ENABLE(Base)
  public:
   string name = "Buttom";
-  // SecondClass* second;
+  SecondClass* second;
 };
 
 RTTR_REFLECT(WithNonPublic)
