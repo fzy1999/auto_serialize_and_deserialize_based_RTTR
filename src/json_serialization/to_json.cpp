@@ -66,6 +66,9 @@ bool get_g_key(const instance& inst, ID_TYPE& cid)
   } else {
     key = inst.get_object_pointer();
   }
+  if (key == nullptr) {
+    return true;
+  }
   GKeyMutex mutex;
   if (!g_key_storage.contains(key)) {
     cid = generate_g_key();
@@ -73,6 +76,7 @@ bool get_g_key(const instance& inst, ID_TYPE& cid)
     return false;
   }
   cid = g_key_storage[key];
+  // std::cout << inst.get_type().get_name().to_string() << " pointer same : " << key << "\n";
   return true;
 }
 
@@ -325,17 +329,16 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 /////////////////////////////////////////////////////////////////////////////////////////
 // TODO(): 优先级算法-->调用指针次数多的优先
 ///////
-
+// int after_count = 0;
+// int before_count = 0;
+int level = 0;
 ID_TYPE to_json_recursively(const instance& obj2)
 {
-  if (!obj2.is_valid()) {
-    return std::nullopt;
-  }
-  ID_TYPE cid;
+  ID_TYPE cid = std::nullopt;
   if (get_g_key(obj2, cid)) {
     return cid;
   }
-
+  level++;
   StringBuffer sb;
   PrettyWriter<StringBuffer> writer(sb);
   writer.StartObject();
@@ -362,12 +365,16 @@ ID_TYPE to_json_recursively(const instance& obj2)
   // std::cout << sb.GetString() << "\n";
   ///// redis storing  /////
   auto aux = RedisAux::GetRedisAux();
-  auto classname = obj.get_type().get_raw_type().get_name().to_string();
+  auto classname = obj.get_derived_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
+  level--;
   if (!aux->hset(classname, *cid, sb.GetString())) {
     std::cerr << "error : hset overwrite with key " + classname << "\n";
   } else {
-    debug_log(1, "writed:" + classname);
+    for (int i = 0; i < level; ++i) {
+      std::cout << '-';
+    }
+    debug_log(0, "writed:" + classname);
   }
   return cid;
 }
@@ -418,8 +425,10 @@ ID_TYPE to_json(rttr::instance obj)
   // 每次反射存储任务, 每个类加入一个map, 识别指针是否存过
   // 如果已经存在指针的key, 则返回存的cid;
   // 如果不存在, 生成cid存入map, 并继续序列化
+  level = 0;
   auto id = to_json_recursively(obj);
-
+  // std::cout << "layer count before : " << before_count << "\n";
+  // std::cout << "layer count after : " << after_count << "\n";
   return *id;
   // return sb.GetString();
 }

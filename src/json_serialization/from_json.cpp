@@ -122,6 +122,9 @@ variant restore_object(const rttr::type& t, rapidjson::GenericValue<rapidjson::U
   fromjson_recursively(idholder, json_value);
   auto theid = idholder.id;
   rttr::type derive = rttr::type::get_by_name(idholder.derive_type);
+  if (!derive.is_derived_from(t)) {
+    return {};
+  }
   assert(derive.is_derived_from(t));
   auto [ready, var] = malloc_class(derive, theid);  //!!!!
   if (!ready) {
@@ -186,9 +189,6 @@ static void write_array_recursively(variant_sequential_view& view, Value& json_a
       write_array_recursively(sub_array_view, json_index_value);
     } else if (json_index_value.IsObject()) {
       auto _type = array_value_type;
-      // variant var_tmp = view.get_value(i);
-      // variant wrapped_var = var_tmp.extract_wrapped_value();
-      // fromjson_recursively(wrapped_var, json_index_value);
       auto wrapped_var = restore_object(_type, json_index_value);
       if (!view.set_value(i, wrapped_var)) {
         std::cerr << "write_array_recursively set_value failed!\n";
@@ -344,17 +344,14 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
       }
       case kObjectType: {
         // TODO(): 处理并非指针的情况!!
-        // 从id还原回来指针, variant 发生了数据拷贝
-        // variant var = prop.get_value(obj);
-        auto var = restore_object(prop.get_type(), json_value);
-        // io::IdHolder idholder;  // for getting cid
-        // fromjson_recursively(idholder, json_value);
-        // auto theid = idholder.id;
-        // auto ready = malloc_class(var, theid);  //!!!!
-        // fromjson_recursively(var, theid);
-
-        // prop.set_value_raw_ptr(obj, tmp_inst_unwarpper.get_object_pointer());
-        auto ok = prop.set_value(obj, var);
+        if (!prop.get_type().is_pointer()) {
+          variant var = prop.get_value(obj);
+          fromjson_recursively(var, json_value);
+          prop.set_value(obj, var);
+        } else {
+          auto var = restore_object(prop.get_type(), json_value);
+          auto ok = prop.set_value(obj, var);
+        }
         debug_log(2, "- prop set object: " + prop.get_value(obj).to_string());
         break;
       }

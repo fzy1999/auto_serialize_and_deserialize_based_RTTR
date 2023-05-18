@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string>
-#define DEBUG 2
+#define DEBUG 0
 
 namespace io {
 using ID_TYPE = std::string;
@@ -15,9 +15,9 @@ struct IdHolder
 };
 }  // namespace io
 
-constexpr void debug_log(int level, const std::string& log)
+constexpr void debug_log(int verbose, const std::string& log)
 {
-  if (level <= DEBUG) {
-    std::cout << "-- " << log << '\n';
+  if (verbose <= DEBUG) {
+    std::cout << "- " << log << '\n';
   }
 }
