@@ -116,8 +116,13 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid);
  * @param json_value
  * @return variant
  */
-variant restore_object(const rttr::type& t, rapidjson::GenericValue<rapidjson::UTF8<>>& json_value)
+variant restore_object(rttr::variant& var_origin, rapidjson::GenericValue<rapidjson::UTF8<>>& json_value)
 {
+  auto t = var_origin.get_type();
+  if (!t.is_pointer()) {
+    fromjson_recursively(var_origin, json_value);
+    return std::move(var_origin);
+  }
   io::IdHolder idholder;  // for getting cid
   fromjson_recursively(idholder, json_value);
   auto theid = idholder.id;
@@ -188,8 +193,9 @@ static void write_array_recursively(variant_sequential_view& view, Value& json_a
       auto sub_array_view = view.get_value(i).create_sequential_view();
       write_array_recursively(sub_array_view, json_index_value);
     } else if (json_index_value.IsObject()) {
-      auto _type = array_value_type;
-      auto wrapped_var = restore_object(_type, json_index_value);
+      // auto _type = array_value_type;
+      auto var = view.get_value(i).extract_wrapped_value();
+      auto wrapped_var = restore_object(var, json_index_value);
       if (!view.set_value(i, wrapped_var)) {
         std::cerr << "write_array_recursively set_value failed!\n";
         exit(1);
@@ -211,15 +217,7 @@ variant extract_value(Value::MemberIterator& itr, const type& t)
   const bool could_convert = extracted_value.convert(t);
   if (!could_convert) {
     if (json_value.IsObject()) {
-      // constructor ctor = t.get_constructor();
-      // for (auto& item : t.get_constructors()) {
-      //   if (item.get_instantiated_type() == t)
-      //     ctor = item;
-      // }
-      // extracted_value = ctor.invoke();
-      // fromjson_recursively(extracted_value, json_value);
-      auto xx = t.get_name();
-      extracted_value = restore_object(t, json_value);
+      extracted_value = restore_object(extracted_value, json_value);
     }
   }
 
@@ -282,6 +280,7 @@ void fromjson_recursively(instance obj2, Value& json_object)
         break;
       }
       case kObjectType: {
+        // TODO(): 增加指针处理
         variant var = prop.get_value(obj);
         fromjson_recursively(var, json_value);
         prop.set_value(obj, var);
@@ -297,6 +296,43 @@ void fromjson_recursively(instance obj2, Value& json_object)
   }
 }
 
+bool is_optional(const type& t)
+{
+  return t.get_name().to_string().find("optional") != string::npos;
+}
+variant convert_optinal_to_basic(variant& var)
+{
+  auto tt = var.get_type();
+  if (is_optional(var.get_type())) {
+    if (var.is_type<std::optional<bool>>())
+      return var.get_value<bool>();
+    else if (var.is_type<std::optional<char>>())
+      return var.get_value<char>();
+    else if (var.is_type<std::optional<int8_t>>())
+      return var.get_value<int8_t>();
+    else if (var.is_type<std::optional<int16_t>>())
+      return var.get_value<int16_t>();
+    else if (var.is_type<std::optional<int32_t>>())
+      return var.get_value<int32_t>();
+    else if (var.is_type<std::optional<int64_t>>())
+      return var.get_value<int64_t>();
+    else if (var.is_type<std::optional<uint8_t>>())
+      return var.get_value<uint8_t>();
+    else if (var.is_type<std::optional<uint16_t>>())
+      return var.get_value<uint16_t>();
+    else if (var.is_type<std::optional<uint32_t>>())
+      return var.get_value<uint32_t>();
+    else if (var.is_type<std::optional<uint64_t>>())
+      return var.get_value<uint64_t>();
+    else if (var.is_type<std::optional<float>>())
+      return var.get_value<float>();
+    else if (var.is_type<std::optional<double>>())
+      return var.get_value<double>();
+    else
+      return {};
+  }
+  return {};
+}
 /**
  * @brief restore from redis
  *
@@ -344,25 +380,30 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
       }
       case kObjectType: {
         // TODO(): 处理并非指针的情况!!
-        if (!prop.get_type().is_pointer()) {
-          variant var = prop.get_value(obj);
-          fromjson_recursively(var, json_value);
-          prop.set_value(obj, var);
-        } else {
-          auto var = restore_object(prop.get_type(), json_value);
-          auto ok = prop.set_value(obj, var);
-        }
+        // if (!prop.get_type().is_pointer()) {
+        //   variant var = prop.get_value(obj);
+        //   fromjson_recursively(var, json_value);
+        //   prop.set_value(obj, var);
+        // } else {
+        auto origin = prop.get_value(obj);
+        auto var = restore_object(origin, json_value);
+        auto vart = var.get_type().get_name().to_string();
+        auto ok = prop.set_value(obj, var);
+        // }
         debug_log(2, "- prop set object: " + prop.get_value(obj).to_string());
         break;
       }
       default: {
         variant extracted_value = extract_basic_types(json_value);
-        if (extracted_value.convert(
-                value_t))  // REMARK: CONVERSION WORKS ONLY WITH "const type", check whether this is correct or not!
+        auto tname = value_t.get_name().to_string();
+        bool ok = false;                                               // debug
+        if (extracted_value.convert(value_t) || is_optional(value_t))  // REMARK: CONVERSION WORKS ONLY WITH "const
+                                                                       // type", check whether this is correct or not!
         {
-          prop.set_value(obj, extracted_value);
-          debug_log(2, "- prop set value: " + extracted_value.to_string());
+          ok = prop.set_value(obj, extracted_value);
         }
+        string ok_str = ok ? " ok" : " failed";  // debug
+        debug_log(2, " prop set value: " + extracted_value.to_string() + ok_str);
       }
     }
   }

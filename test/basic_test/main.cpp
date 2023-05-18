@@ -59,16 +59,15 @@ int test_clang(TopClass& top)
 
 int test_json(TopClass& top)
 {
-  auto topid = io::to_json(top.second);
-  if (topid == "0") {
+  auto cid = io::to_json(top.second);
+  if (cid == "0") {
     cout << "to_json error \n";
     return 1;
   }
   // cout << topid << endl;
   TopClass cli_top(99);
   SecondClass cli_sec;
-  io::from_key(topid, cli_sec);
-  auto* bot_base = dynamic_cast<BottomClass*>(cli_sec.bases[1]);
+  io::from_key(cid, cli_sec);
   return 0;
 }
 
@@ -125,10 +124,11 @@ int main()
   second.bases.push_back(&bottom);
   second.opt_bot = bottom;
   second.opt_int = 996;
+  second.bot_inst.name = "ccchanged";
   // bottom.second = &second;
   // test_clang(top);
-  // test_json(top);
+  test_json(top);
   // test_base(second);
-  test_optional(second);
+  // test_optional(second);
   return 0;
 }

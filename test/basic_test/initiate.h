@@ -36,6 +36,7 @@ class SecondClass
   std::vector<Base*> bases;
   std::optional<BottomClass> opt_bot;
   std::optional<int> opt_int;
+  BottomClass bot_inst;
   // RTTR_ENABLE()
   RTTR_REGISTRATION_FRIEND
 };

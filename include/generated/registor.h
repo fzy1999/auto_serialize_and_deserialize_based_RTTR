@@ -34,6 +34,7 @@ RTTR_REGISTRATION
       .property("bases", &SecondClass::bases)
       .property("opt_bot", &SecondClass::opt_bot)
       .property("opt_int", &SecondClass::opt_int)
+      .property("bot_inst", &SecondClass::bot_inst)
 
       ;
   rttr::registration::class_<TopClass::Top>("TopClass::Top")

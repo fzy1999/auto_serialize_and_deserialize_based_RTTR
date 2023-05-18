@@ -32,6 +32,29 @@
 /////////////////////////////////////////////////////////////////////////////////////////
 // pointer to member - read write
 
+#include <optional>
+
+template <typename T>
+struct is_optional
+{
+  static constexpr bool value = false;
+};
+
+template <typename T>
+struct is_optional<std::optional<T>>
+{
+  static constexpr bool value = true;
+};
+template <typename T>
+struct optional_value_type
+{
+  using type = T;
+};
+template <typename T>
+struct optional_value_type<std::optional<T>>
+{
+  using type = T;
+};
 template <typename Declaring_Typ, typename C, typename A, access_levels Acc_Level, std::size_t Metadata_Count,
           typename Visitor_List>
 class property_wrapper<member_object_ptr, Declaring_Typ, A(C::*), void, Acc_Level, return_as_copy, set_value,
@@ -75,7 +98,12 @@ class property_wrapper<member_object_ptr, Declaring_Typ, A(C::*), void, Acc_Leve
   bool set_value(instance& object, argument& arg) const
   {
     C* ptr = object.try_convert<C>();
-    if (ptr && arg.is_type<A>())
+    bool is = false;
+    if (is_optional<A>::value) {
+      using striped_type = optional_value_type<A>::type;
+      is = arg.is_type<striped_type>();
+    }
+    if (ptr && (arg.is_type<A>() || is))
       return property_accessor<A>::set_value((ptr->*m_acc), arg.get_value<A>());
     else
       return false;
