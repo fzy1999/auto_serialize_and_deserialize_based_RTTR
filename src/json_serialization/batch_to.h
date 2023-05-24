@@ -24,11 +24,11 @@ using TASK_PTR = std::shared_ptr<Task>;
 
 struct Task
 {
-  Task() = default;
+  Task() = delete;
   explicit Task(instance& _inst) : inst(_inst){};
   explicit Task(const instance& _inst) : inst(_inst){};
-  std::shared_ptr<Task> parent;
-  int need = 0;
+  // std::shared_ptr<Task> parent;
+  // int need = 0;
   // std::vector<std::string> cids;
   // looks like "{"id":"type"}"
   std::string cid;
@@ -49,6 +49,7 @@ struct TaskDict
   size_t walker = 0;
   size_t tail = 0;
   size_t reader = 0;
+  const size_t capcity = 5000000;
   class GKeyMutex
   {
     std::mutex _td_mutex;
@@ -62,12 +63,13 @@ struct TaskDict
   void add_task(void* ptr, TASK_PTR task);
 
  public:
+  TaskDict() { _tasks.reserve(capcity); }
   TASK_PTR get_next();
-  void serialize_all();  // TODO(): 顺序处理tasks, 这个第二遍已经有所有的key
+  void serialize_all();  // unused!!
   bool has_next() { return walker < _tasks.size(); }
   bool has_key(void* vp) { return _dict.contains(vp); }
-  bool has_unread() { return reader < walker; }
-  TASK_PTR get_next_unread() { return _tasks[reader++]; }
+  bool has_unread() { return reader < walker; }  // TODO(): 可能会提前结束
+  TASK_PTR get_next_unread();
   TASK_PTR get_key(const instance& inst);
 };
 
@@ -107,6 +109,7 @@ class TaskAllocator
   StoreQueue queue;
   int level = 0;
   TaskDict task_dict;
+  bool alloc_finished = false;
 };
 
 class ToRedis

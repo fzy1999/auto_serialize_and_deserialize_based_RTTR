@@ -21,8 +21,9 @@ ID_TYPE TaskDict::generate_key(void* ptr)
 
 void TaskDict::add_task(void* ptr, TASK_PTR task)
 {
-  _tasks.emplace_back(task);
-  _dict[ptr] = std::move(task);
+  assert(task);
+  _dict[ptr] = task;
+  _tasks.push_back(task);
 }
 
 TASK_PTR TaskDict::get_next()
@@ -31,17 +32,21 @@ TASK_PTR TaskDict::get_next()
     tail = _tasks.size();
     level++;
   }
+  assert(_tasks[walker]);
   return _tasks[walker++];
 }
 
 // TODO():
 void TaskDict::serialize_all()
 {
-  // ThreadPool pool(thread_num);
-  while (has_next()) {
-    while (has_unread()) {
-    }
-  }
+}
+
+inline TASK_PTR TaskDict::get_next_unread()
+{
+  assert(reader < walker);
+  auto maynull = _tasks[reader];
+  assert(maynull);
+  return _tasks[reader++];
 }
 // check and get
 TASK_PTR TaskDict::get_key(const instance& inst)
@@ -65,48 +70,53 @@ TASK_PTR TaskDict::get_key(const instance& inst)
     auto task = std::make_shared<Task>(inst);
     task->cid = *cid;
     task->cname = inst.get_derived_type().get_raw_type().get_name().to_string();
-
     add_task(key, task);
-    // _dict[key] = task;
     return task;
   }
-  // cid = task_dict[key];
-  // std::cout << inst.get_type().get_name().to_string() << " pointer same : " << key << "\n";
+  assert(_dict[key]);
   return _dict[key];
 }
 
 // only allocate key and set to map
 void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid)
 {
-  auto task = dict.get_key(inst);
-  if (task == nullptr) {
+  auto root = dict.get_key(inst);
+  if (root == nullptr) {
     cid = std::nullopt;
-    return;  // TODO():
+    return;
   }
-  cid = task->cid;
+  cid = root->cid;
+  int total = 1;
   while (dict.has_next()) {
     auto task = dict.get_next();
+    assert(task);
     auto obj = get_wrapped(task->inst);
     allocate_instance(obj);
+    total++;
   }
+  std::cout << "alloc total:" << total << std::endl << std::flush;
+  alloc_finished = true;
 }
 
 void TaskAllocator::serialize_all()
 {
   // ThreadPool pool(thread_num);
 
-  while (dict.has_unread()) {
-    auto task = dict.get_next_unread();
-    StringBuffer sb;
-    PrettyWriter<StringBuffer> writer(sb);
-    auto obj = get_wrapped(task->inst);
+  while (!alloc_finished) {
+    while (dict.has_unread()) {
+      auto task = dict.get_next_unread();
+      assert(task);
+      StringBuffer sb;
+      PrettyWriter<StringBuffer> writer(sb);
+      auto obj = get_wrapped(task->inst);
 
-    serialize_instance(obj, writer);
+      serialize_instance(obj, writer);
 
-    std::cout << sb.GetString() << std::endl;
-    task->json = sb.GetString();
-    if (task->cname.empty()) {
-      task->cname = obj.get_derived_type().get_raw_type().get_name().to_string();
+      // std::cout << sb.GetString() << std::endl;
+      task->json = sb.GetString();
+      if (task->cname.empty()) {
+        task->cname = obj.get_derived_type().get_raw_type().get_name().to_string();
+      }
     }
   }
 }
@@ -278,6 +288,7 @@ void TaskAllocator::allocate_associative_container(const rttr::variant_associati
 
 void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential_view& view)
 {
+  auto n = view.get_size();
   for (const auto& item : view) {
     if (item.is_sequential_container()) {
       allocate_sequential_container(item.create_sequential_view());
@@ -299,6 +310,7 @@ void TaskAllocator::allocate_instance(const instance& obj)
     if (!prop_value)
       continue;
     auto wrapped_val = get_wrapped(prop_value);
+    auto name = wrapped_val.get_type().get_name().to_string();
     if (wrapped_val.is_associative_container()) {
       allocate_associative_container(wrapped_val.create_associative_view());
     } else if (wrapped_val.is_sequential_container()) {
@@ -380,7 +392,7 @@ inline void ToRedis::call_alloc(rttr::instance& inst, ID_TYPE& cid)
 
 void ToRedis::call_serialize_all()
 {
-  allocator.serialize_all();
+  // allocator.serialize_all();
 }
 
 }  // namespace c2redis
