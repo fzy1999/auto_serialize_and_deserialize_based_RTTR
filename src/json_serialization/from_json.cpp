@@ -95,7 +95,7 @@ auto malloc_class(const rttr::type& t, const ID_TYPE& cid)
     std::cerr << "error: set variant with cid failed \n";
     exit(1);
   }
-  debug_log(2, " malloc class: " + var.get_type().get_name().to_string());
+  c2redis::debug_log(2, " malloc class: " + var.get_type().get_name().to_string());
   return std::make_pair(false, var);
 }
 
@@ -123,7 +123,7 @@ variant restore_object(rttr::variant& var_origin, rapidjson::GenericValue<rapidj
     fromjson_recursively(var_origin, json_value);
     return std::move(var_origin);
   }
-  io::IdHolder idholder;  // for getting cid
+  c2redis::IdHolder idholder;  // for getting cid
   fromjson_recursively(idholder, json_value);
   auto theid = idholder.id;
   rttr::type derive = rttr::type::get_by_name(idholder.derive_type);
@@ -345,7 +345,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
   // get this json from redis
   auto aux = RedisAux::GetRedisAux();
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
-  debug_log(1, "parsing class: " + classname);
+  c2redis::debug_log(1, "parsing class: " + classname);
   string json(aux->hget(classname, *cid));
   Document json_object;
 
@@ -360,7 +360,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
     if (ret == json_object.MemberEnd())
       continue;
     const type value_t = prop.get_type();
-    debug_log(2, "- parsing prop: " + value_t.get_name().to_string());
+    c2redis::debug_log(2, "- parsing prop: " + value_t.get_name().to_string());
     auto& json_value = ret->value;
     switch (json_value.GetType()) {
       case kArrayType: {
@@ -390,7 +390,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
         auto vart = var.get_type().get_name().to_string();
         auto ok = prop.set_value(obj, var);
         // }
-        debug_log(2, "- prop set object: " + prop.get_value(obj).to_string());
+        c2redis::debug_log(2, "- prop set object: " + prop.get_value(obj).to_string());
         break;
       }
       default: {
@@ -403,7 +403,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
           ok = prop.set_value(obj, extracted_value);
         }
         string ok_str = ok ? " ok" : " failed";  // debug
-        debug_log(2, " prop set value: " + extracted_value.to_string() + ok_str);
+        c2redis::debug_log(2, " prop set value: " + extracted_value.to_string() + ok_str);
       }
     }
   }

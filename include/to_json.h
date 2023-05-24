@@ -10,8 +10,7 @@ namespace io {
 /*!
  * Serialize the given instance to a json encoded string.
  */
-ID_TYPE to_json(rttr::instance obj);
-
+c2redis::ID_TYPE to_json(rttr::instance obj);
 }  // namespace io
 
 // RTTR_REGISTRATION

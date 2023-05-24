@@ -34,7 +34,7 @@ class SecondClass
   int32_t y = 88;
   std::unordered_map<string, BottomClass*> bottom_map;
   std::vector<Base*> bases;
-  std::optional<BottomClass> opt_bot;
+  std::optional<BottomClass*> opt_bot;
   std::optional<int> opt_int;
   BottomClass bot_inst;
   // RTTR_ENABLE()

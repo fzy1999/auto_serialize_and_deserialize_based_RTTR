@@ -19,6 +19,7 @@ elseif(CMAKE_CXX_COMPILER MATCHES clang)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/third_party)
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(src)
 add_subdirectory(test)

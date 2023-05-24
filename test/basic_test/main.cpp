@@ -19,8 +19,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "to_json.h"
-#include "from_json.h"
+#include "from_to_redis.h"
 #include "initiate.h"
 using namespace rttr;
 
@@ -67,7 +66,7 @@ int test_json(TopClass& top)
   // cout << topid << endl;
   TopClass cli_top(99);
   SecondClass cli_sec;
-  io::from_key(cid, cli_sec);
+  io::from_key(*cid, cli_sec);
   return 0;
 }
 
@@ -105,6 +104,31 @@ int test_optional(SecondClass& second)
   return 0;
 }
 
+int test_batch_to(TopClass& top)
+{
+  c2redis::ToRedis to_redis;
+  auto cid = to_redis(top);
+  return 0;
+}
+
+int test_option2(SecondClass& second)
+{
+  StringBuffer sb;
+  PrettyWriter<StringBuffer> writer(sb);
+  writer.StartObject();
+  string name("test");
+  writer.String(name.data(), static_cast<rapidjson::SizeType>(name.length()), false);
+  instance inst(second);
+  auto var = inst.get_type().get_property("opt_bot").get_value(inst);
+  // writer.Int(var.get_value<int32_t>());
+  variant varcl(var);
+  auto xx = varcl.get_value<BottomClass>();
+  writer.EndObject();
+  cout << sb.GetString() << endl;
+
+  return 0;
+}
+
 int main()
 {
   TopClass top(99);
@@ -122,15 +146,17 @@ int main()
   top.secplist.push_back(&second);
   second.bases.push_back(&base);
   second.bases.push_back(&bottom);
-  second.opt_bot = bottom;
+  second.opt_bot = &bottom;
   second.opt_int = 996;
   second.bot_inst.name = "ccchanged";
   second.bot_inst.second = nullptr;
   second.bottom->second = &second;
   // bottom.second = &second;
   // test_clang(top);
-  test_json(top);
+  // test_json(top);
   // test_base(second);
   // test_optional(second);
+  test_batch_to(top);
+  // test_option2(second);
   return 0;
 }

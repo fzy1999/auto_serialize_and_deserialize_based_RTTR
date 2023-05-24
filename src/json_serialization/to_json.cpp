@@ -98,7 +98,7 @@ void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringB
 {
   if (cid == std::nullopt) {
     // null pointer
-    io::NullHolder nullholder;
+    c2redis::NullHolder nullholder;
     to_json_recursively(nullholder, writer);
     return;
   }
@@ -109,7 +109,7 @@ void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringB
   if (derive_type.is_pointer()) {
     derive_type = derive_type.get_raw_type();
   }
-  io::IdHolder holder{*cid, derive_type.get_name().to_string()};
+  c2redis::IdHolder holder{*cid, derive_type.get_name().to_string()};
   to_json_recursively(holder, writer);
 }
 
@@ -254,7 +254,6 @@ static void write_associative_container(const variant_associative_view& view, Pr
       write_variant(item.first, writer);
 
       writer.String(value_name.data(), static_cast<rapidjson::SizeType>(value_name.length()), false);
-      auto iv = item.second.get_type();
       write_variant(item.second, writer);
 
       writer.EndObject();
@@ -346,12 +345,12 @@ ID_TYPE to_json_recursively(const instance& obj2)
   PrettyWriter<StringBuffer> writer(sb);
   writer.StartObject();
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
-  debug_log(1, obj.get_type().get_name().to_string());
+  c2redis::debug_log(1, obj.get_type().get_name().to_string());
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     if (prop.get_metadata("NO_SERIALIZE"))
       continue;
-    debug_log(2, "dealing prop: " + prop.get_type().get_name().to_string());
+    c2redis::debug_log(2, "dealing prop: " + prop.get_type().get_name().to_string());
     variant prop_value = prop.get_value(obj);
     if (!prop_value)
       continue;  // cannot serialize, because we cannot retrieve the value
@@ -374,7 +373,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   if (!aux->hset(classname, *cid, sb.GetString())) {
     std::cerr << "error : hset overwrite with key " + classname << "\n";
   } else {
-    debug_log(1, "writed:" + classname + " in level:" + std::to_string(level));
+    c2redis::debug_log(1, "writed:" + classname + " in level:" + std::to_string(level));
   }
   return cid;
 }
