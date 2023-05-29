@@ -2,6 +2,7 @@
 #include "myrttr/registration_friend"
 #include "myrttr/rttr_enable.h"
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -22,7 +23,7 @@ class BottomClass : public Base
   RTTR_ENABLE(Base)
  public:
   string name = "Buttom";
-  SecondClass* second;
+  SecondClass* second = nullptr;
 };
 
 RTTR_REFLECT(WithNonPublic)
@@ -33,7 +34,7 @@ class SecondClass
   string name = "Second";
   int32_t y = 88;
   std::unordered_map<string, BottomClass*> bottom_map;
-  std::vector<Base*> bases;
+  std::vector<std::shared_ptr<Base>> bases;
   std::optional<BottomClass*> opt_bot;
   std::optional<int> opt_int;
   BottomClass bot_inst;

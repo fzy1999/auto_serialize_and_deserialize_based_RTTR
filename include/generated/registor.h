@@ -3,7 +3,7 @@
 #include "myrttr/registration"
 #include "../common.h"
 
-#include "/home/sxx/workSpace/c2redis/output/../test/basic_test/initiate.h"
+#include "../test/basic_test/initiate.h"
 
 RTTR_REGISTRATION
 {

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include "c2redis/test/basic_test/initiate.h"
 #include "myrttr/property.h"
 #include "myrttr/registration"
 #include "myrttr/registration_friend"
@@ -20,7 +21,9 @@
 #include <vector>
 
 #include "from_to_redis.h"
-#include "initiate.h"
+// #include "initiate.h"
+#include "generated/registor.h"
+
 using namespace rttr;
 
 using namespace sw::redis;
@@ -39,8 +42,6 @@ template <typename T>
 struct is_optional<std::optional<T>> : std::true_type
 {
 };
-
-#include "generated/registor.h"
 
 //clang-format on
 
@@ -106,6 +107,7 @@ int test_optional(SecondClass& second)
 
 int test_batch_to(TopClass& top)
 {
+  // io::to_json(top.second);
   c2redis::ToRedis to_redis;
   auto cid = to_redis(top);
   return 0;
@@ -129,6 +131,33 @@ int test_option2(SecondClass& second)
   return 0;
 }
 
+int test_shared(TopClass& top)
+{
+  instance inst(top.second);
+  auto var = inst.get_type().get_property("bases");
+  auto vt = var.get_type().get_raw_type().get_wrapped_type();
+  auto secv = var.get_value(inst);
+  auto view = secv.create_sequential_view();
+  auto c = view.get_size();
+  auto sp = std::make_shared<Base>();
+  instance spinst(sp);
+  for (const auto& v : view) {
+    variant wrapped_var = v.extract_wrapped_value();
+    instance vinst(wrapped_var);
+    void* key;
+    if (vinst.get_derived_type().get_raw_type().is_wrapper()) {
+      key = vinst.get_wrapped_instance().get_object_pointer();
+    } else {
+      key = vinst.get_object_pointer();
+    }
+    auto xx = vinst.get_wrapped_instance().get_derived_type();
+    auto wr = vinst.get_type().get_raw_type().is_wrapper() ? vinst.get_wrapped_instance() : vinst;
+    auto task = std::make_shared<c2redis::Task>(vinst);
+    auto x = 0;
+  }
+  return 1;
+}
+
 int main()
 {
   TopClass top(99);
@@ -144,8 +173,8 @@ int main()
   top.set_second(&second);
   top.secplist.push_back(&second);
   top.secplist.push_back(&second);
-  second.bases.push_back(&base);
-  second.bases.push_back(&bottom);
+  second.bases.push_back(std::make_shared<Base>());
+  second.bases.push_back(std::make_shared<BottomClass>());
   second.opt_bot = &bottom;
   second.opt_int = 996;
   second.bot_inst.name = "ccchanged";
@@ -157,6 +186,7 @@ int main()
   // test_base(second);
   // test_optional(second);
   test_batch_to(top);
+  // test_shared(top);
   // test_option2(second);
   return 0;
 }

@@ -22,6 +22,7 @@
 
 using namespace rapidjson;
 using namespace rttr;
+using c2redis::ID_TYPE;
 
 namespace {
 void to_json_recursively(const instance& obj, PrettyWriter<StringBuffer>& writer);
@@ -333,6 +334,7 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 ///////
 // int after_count = 0;
 // int before_count = 0;
+int total = 0;
 int level = 0;
 ID_TYPE to_json_recursively(const instance& obj2)
 {
@@ -366,7 +368,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
   writer.EndObject();
   // std::cout << sb.GetString() << "\n";
   ///// redis storing  /////
-  auto aux = RedisAux::GetRedisAux();
+  auto aux = RedisAux::GetRedisAux(false, 1);
   auto classname = obj.get_derived_type().get_raw_type().get_name().to_string();
   // TODO(): add lock
   level--;
@@ -374,6 +376,7 @@ ID_TYPE to_json_recursively(const instance& obj2)
     std::cerr << "error : hset overwrite with key " + classname << "\n";
   } else {
     c2redis::debug_log(1, "writed:" + classname + " in level:" + std::to_string(level));
+    total++;
   }
   return cid;
 }
@@ -428,6 +431,7 @@ ID_TYPE to_json(rttr::instance obj)
   auto id = to_json_recursively(obj);
   // std::cout << "layer count before : " << before_count << "\n";
   // std::cout << "layer count after : " << after_count << "\n";
+  std::cout << "total count : " << total << "\n";
   return *id;
   // return sb.GetString();
 }

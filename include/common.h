@@ -4,7 +4,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
-#define DEBUG 2
+#define DEBUG 0
 
 namespace c2redis {
 const size_t VP_LEN = 8;

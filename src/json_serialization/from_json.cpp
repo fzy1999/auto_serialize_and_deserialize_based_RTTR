@@ -8,6 +8,7 @@
 #include <array>
 
 #include <iostream>
+#include "common.h"
 #include "myrttr/instance.h"
 #include "myrttr/property.h"
 #include "myrttr/type.h"
@@ -22,6 +23,7 @@
 
 using namespace rapidjson;
 using namespace rttr;
+using c2redis::ID_TYPE;
 using std::string;
 namespace {
 std::unordered_map<string, variant> g_key_storage;
@@ -343,7 +345,7 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
 {
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
   // get this json from redis
-  auto aux = RedisAux::GetRedisAux();
+  auto aux = RedisAux::GetRedisAux(false, 1);
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   c2redis::debug_log(1, "parsing class: " + classname);
   string json(aux->hget(classname, *cid));
