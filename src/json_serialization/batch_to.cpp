@@ -401,24 +401,12 @@ void TaskAllocator::allocate_instance(const instance& obj)
   }
 }
 
-// inline rttr::instance TaskAllocator::get_wrapped(const rttr::instance& inst)
-// {
-//   return inst.get_type().get_raw_type().is_wrapper() ? inst.get_wrapped_instance() : inst;
-// }
-
 rttr::variant TaskDict::get_wrapped(const rttr::variant& var)
 {
-  // auto type = var.get_type();
-  // auto unwrapper = var;
-  // while (type.is_wrapper()) {
-  //   unwrapper = unwrapper.extract_wrapped_value();
-  //   type = unwrapper.get_type();
-  // }
   auto value_type = var.get_type();
   auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
   bool is_wrapper = wrapped_type != value_type;
   return is_wrapper ? var.extract_wrapped_value() : var;
-  // return unwrapper;
 }
 
 type TaskDict::get_wrapped(const type& value_type)
