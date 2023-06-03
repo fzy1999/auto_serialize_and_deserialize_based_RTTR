@@ -1,13 +1,13 @@
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <array>
 
-#include <iostream>
 #include "common.h"
 #include "myrttr/instance.h"
 #include "myrttr/property.h"
@@ -15,11 +15,12 @@
 #include "myrttr/variant.h"
 
 #define RAPIDJSON_HAS_STDSTRING 1
-#include <rapidjson/prettywriter.h>  // for stringify JSON
 #include <rapidjson/document.h>      // rapidjson's DOM-style API
-#include "myrttr/type"
+#include <rapidjson/prettywriter.h>  // for stringify JSON
+
 #include "../redis_helper/redis_helper.h"
 #include "from_json.h"
+#include "myrttr/type"
 
 using namespace rapidjson;
 using namespace rttr;
@@ -27,8 +28,7 @@ using c2redis::ID_TYPE;
 using std::string;
 namespace {
 std::unordered_map<string, variant> g_key_storage;
-class GKeyMutex
-{
+class GKeyMutex {
   std::mutex _g_key_mutex;
 
  public:
@@ -36,9 +36,8 @@ class GKeyMutex
   ~GKeyMutex() { _g_key_mutex.unlock(); }
 };
 
-auto get_g_key(const ID_TYPE& cid)
-{
-  GKeyMutex mutex;
+auto get_g_key(const ID_TYPE& cid) {
+  // GKeyMutex mutex;
   if (g_key_storage.contains(*cid)) {
     variant var = g_key_storage[*cid];
     return std::make_pair(true, var);
@@ -46,30 +45,29 @@ auto get_g_key(const ID_TYPE& cid)
   return std::make_pair(false, variant());
 }
 
-bool set_g_key(const ID_TYPE& cid, const variant& var)
-{
-  GKeyMutex mutex;
+bool set_g_key(const ID_TYPE& cid, const variant& var) {
+  // GKeyMutex mutex;
   if (!g_key_storage.contains(*cid)) {
     if (var.is_valid()) {
       g_key_storage[*cid] = var;
       return true;
     }
   }
+  auto ct = g_key_storage.contains(*cid);
+  auto valid = var.is_valid();
   return false;
 }
 /////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-inline instance check_get_wrapped(instance& obj2)
-{
+inline instance check_get_wrapped(instance& obj2) {
   return obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-inline type get_wrapped_type(const type& type2)
-{
+inline type get_wrapped_type(const type& type2) {
   return type2.is_wrapper() ? type2.get_wrapped_type().get_raw_type() : type2.get_raw_type();
 }
 
@@ -81,8 +79,7 @@ inline type get_wrapped_type(const type& type2)
  * @param var
  * @return whether malloc is ready & variant
  */
-auto malloc_class(const rttr::type& t, const ID_TYPE& cid)
-{
+auto malloc_class(const rttr::type& t, const ID_TYPE& cid) {
   auto [has, var] = get_g_key(cid);
   if (has) {
     if (!var.is_valid()) {
@@ -92,7 +89,7 @@ auto malloc_class(const rttr::type& t, const ID_TYPE& cid)
     return std::make_pair(true, var);
   }
   auto _type = get_wrapped_type(t).get_name().to_string();
-  var = type::get_by_name(_type).create();
+  var = type::get_by_name(_type).create();  // 怎么处理的top
   if (!set_g_key(cid, var)) {
     std::cerr << "error: set variant with cid failed \n";
     exit(1);
@@ -118,15 +115,17 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid);
  * @param json_value
  * @return variant
  */
-variant restore_object(rttr::variant& var_origin, rapidjson::GenericValue<rapidjson::UTF8<>>& json_value)
-{
+variant restore_object(rttr::variant& var_origin, rapidjson::GenericValue<rapidjson::UTF8<>>& json_value) {
   auto t = var_origin.get_type();
   if (!t.is_pointer()) {
     fromjson_recursively(var_origin, json_value);
     return std::move(var_origin);
   }
   c2redis::IdHolder idholder;  // for getting cid
-  fromjson_recursively(idholder, json_value);
+  // fromjson_recursively(idholder, json_value);
+  auto member = json_value.MemberBegin();
+  idholder.id = member->name.GetString();
+  idholder.derive_type = member->value.GetString();
   auto theid = idholder.id;
   rttr::type derive = rttr::type::get_by_name(idholder.derive_type);
   if (!derive.is_derived_from(t)) {
@@ -146,8 +145,7 @@ variant restore_object(rttr::variant& var_origin, rapidjson::GenericValue<rapidj
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-variant extract_basic_types(Value& json_value)
-{
+variant extract_basic_types(Value& json_value) {
   switch (json_value.GetType()) {
     case kStringType: {
       return std::string(json_value.GetString());
@@ -184,8 +182,7 @@ variant extract_basic_types(Value& json_value)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-static void write_array_recursively(variant_sequential_view& view, Value& json_array_value)
-{
+static void write_array_recursively(variant_sequential_view& view, Value& json_array_value) {
   view.set_size(json_array_value.Size());
   const type array_value_type = view.get_rank_type(1);
 
@@ -205,14 +202,12 @@ static void write_array_recursively(variant_sequential_view& view, Value& json_a
 
     } else {
       variant extracted_value = extract_basic_types(json_index_value);
-      if (extracted_value.convert(array_value_type))
-        view.set_value(i, extracted_value);
+      if (extracted_value.convert(array_value_type)) view.set_value(i, extracted_value);
     }
   }
 }
 
-variant extract_value(Value::MemberIterator& itr, const type& t)
-{
+variant extract_value(Value::MemberIterator& itr, const type& t) {
   auto& json_value = itr->value;
   variant extracted_value = extract_basic_types(json_value);
   // if object is not pointer, then return true
@@ -226,8 +221,7 @@ variant extract_value(Value::MemberIterator& itr, const type& t)
   return extracted_value;
 }
 
-static void write_associative_view_recursively(variant_associative_view& view, Value& json_array_value)
-{
+static void write_associative_view_recursively(variant_associative_view& view, Value& json_array_value) {
   for (SizeType i = 0; i < json_array_value.Size(); ++i) {
     auto& json_index_value = json_array_value[i];
     if (json_index_value.IsObject())  // a key-value associative view
@@ -245,23 +239,20 @@ static void write_associative_view_recursively(variant_associative_view& view, V
     } else  // a key-only associative view
     {
       variant extracted_value = extract_basic_types(json_index_value);
-      if (extracted_value && extracted_value.convert(view.get_key_type()))
-        view.insert(extracted_value);
+      if (extracted_value && extracted_value.convert(view.get_key_type())) view.insert(extracted_value);
     }
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-void fromjson_recursively(instance obj2, Value& json_object)
-{
+void fromjson_recursively(instance obj2, Value& json_object) {
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
   const auto prop_list = obj.get_derived_type().get_properties();
 
   for (auto prop : prop_list) {
     Value::MemberIterator ret = json_object.FindMember(prop.get_name().data());
-    if (ret == json_object.MemberEnd())
-      continue;
+    if (ret == json_object.MemberEnd()) continue;
     const type value_t = prop.get_type();
 
     auto& json_value = ret->value;
@@ -282,7 +273,6 @@ void fromjson_recursively(instance obj2, Value& json_object)
         break;
       }
       case kObjectType: {
-        // TODO(): 增加指针处理
         variant var = prop.get_value(obj);
         fromjson_recursively(var, json_value);
         prop.set_value(obj, var);
@@ -298,12 +288,8 @@ void fromjson_recursively(instance obj2, Value& json_object)
   }
 }
 
-bool is_optional(const type& t)
-{
-  return t.get_name().to_string().find("optional") != string::npos;
-}
-variant convert_optinal_to_basic(variant& var)
-{
+bool is_optional(const type& t) { return t.get_name().to_string().find("optional") != string::npos; }
+variant convert_optinal_to_basic(variant& var) {
   auto tt = var.get_type();
   if (is_optional(var.get_type())) {
     if (var.is_type<std::optional<bool>>())
@@ -335,17 +321,15 @@ variant convert_optinal_to_basic(variant& var)
   }
   return {};
 }
-/**
- * @brief restore from redis
- *
- * @param obj2
- * @param cid
- */
-void fromjson_recursively(instance obj2, const ID_TYPE cid)
-{
+
+////////////////////
+int level = -1;
+std::vector<string> _archit;
+
+void fromjson_recursively(instance obj2, const ID_TYPE cid) {
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
   // get this json from redis
-  auto aux = RedisAux::GetRedisAux(false, 1);
+  auto aux = RedisAux::GetRedisAux(false, 0);
   auto classname = obj.get_type().get_raw_type().get_name().to_string();
   c2redis::debug_log(1, "parsing class: " + classname);
   string json(aux->hget(classname, *cid));
@@ -354,13 +338,15 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
   if (json_object.Parse(json.c_str()).HasParseError()) {
     std::cerr << "error in document.Parse\n";
   }
-
+  level++;
   const auto prop_list = obj.get_derived_type().get_properties();
 
   for (auto prop : prop_list) {
-    Value::MemberIterator ret = json_object.FindMember(prop.get_name().data());
-    if (ret == json_object.MemberEnd())
+    if (level < _archit.size() && prop.get_name().to_string() != _archit[level]) {
       continue;
+    }
+    Value::MemberIterator ret = json_object.FindMember(prop.get_name().data());
+    if (ret == json_object.MemberEnd()) continue;
     const type value_t = prop.get_type();
     c2redis::debug_log(2, "- parsing prop: " + value_t.get_name().to_string());
     auto& json_value = ret->value;
@@ -381,17 +367,9 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
         break;
       }
       case kObjectType: {
-        // TODO(): 处理并非指针的情况!!
-        // if (!prop.get_type().is_pointer()) {
-        //   variant var = prop.get_value(obj);
-        //   fromjson_recursively(var, json_value);
-        //   prop.set_value(obj, var);
-        // } else {
         auto origin = prop.get_value(obj);
         auto var = restore_object(origin, json_value);
-        auto vart = var.get_type().get_name().to_string();
         auto ok = prop.set_value(obj, var);
-        // }
         c2redis::debug_log(2, "- prop set object: " + prop.get_value(obj).to_string());
         break;
       }
@@ -418,13 +396,11 @@ void fromjson_recursively(instance obj2, const ID_TYPE cid)
 
 namespace io {
 
-bool from_json(const std::string& json, rttr::instance obj)
-{
+bool from_json(const std::string& json, rttr::instance obj) {
   Document document;  // Default template parameter uses UTF8 and MemoryPoolAllocator.
 
   // "normal" parsing, decode strings to new buffers. Can use other input stream via ParseStream().
-  if (document.Parse(json.c_str()).HasParseError())
-    return 1;
+  if (document.Parse(json.c_str()).HasParseError()) return 1;
 
   fromjson_recursively(obj, document);
 
@@ -439,8 +415,15 @@ bool from_json(const std::string& json, rttr::instance obj)
  * @return true
  * @return false
  */
-bool from_key(const std::string& key, rttr::instance obj)
-{
+bool from_key(const std::string& key, rttr::instance obj) {
+  level = -1;
+  fromjson_recursively(obj, key);
+  return true;
+}
+
+bool from_key(const std::string& key, rttr::instance obj, std::vector<string>&& archi) {
+  level = -1;
+  _archit = std::move(archi);
   fromjson_recursively(obj, key);
   return true;
 }

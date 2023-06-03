@@ -11,21 +11,23 @@
 #include <rapidjson/document.h>      // rapidjson's DOM-style API
 #include <rapidjson/prettywriter.h>  // for stringify JSON
 
+#include "common.h"
 #include "myrttr/instance.h"
 #include "myrttr/property.h"
 #include "myrttr/type"
-#include "common.h"
 #include "myrttr/variant.h"
+
+namespace c2redis {
 using std::shared_ptr;
 using namespace rapidjson;
 using namespace rttr;
-namespace c2redis {
+using rttr::variant;
+
 auto duration = [](auto s, auto e) { return std::chrono::duration_cast<std::chrono::seconds>(e - s).count(); };
 struct Task;
 using TASK_PTR = std::shared_ptr<Task>;
 
-struct Task
-{
+struct Task {
   Task() = default;
   explicit Task(instance& _inst) : inst(_inst){};
   explicit Task(const instance& _inst) : inst(_inst){};
@@ -42,8 +44,7 @@ struct Task
   bool store();
 };
 
-struct TaskDict
-{
+struct TaskDict {
  private:
   std::unordered_map<void*, TASK_PTR> _dict;
   std::vector<TASK_PTR> _tasks;
@@ -53,8 +54,7 @@ struct TaskDict
   size_t reader = 0;
   size_t keeper = 0;
   const size_t capacity = 45000000;
-  class GKeyMutex
-  {
+  class GKeyMutex {
     std::mutex _td_mutex;
 
    public:
@@ -66,8 +66,7 @@ struct TaskDict
   void add_task(void* ptr, TASK_PTR task);
 
  public:
-  TaskDict()
-  {
+  TaskDict() {
     _tasks.reserve(capacity);
     _dict.reserve(capacity);
   }
@@ -81,13 +80,12 @@ struct TaskDict
   TASK_PTR get_next_unread();
   TASK_PTR add_key(const instance& inst);
   TASK_PTR get_key(const instance& inst);
-  instance get_wrapped(const instance& inst);
-  variant get_wrapped(const variant& var);
-  type get_wrapped(const type& type);
+  // instance get_wrapped(const instance& inst);
+  // rttr::variant get_wrapped(const rttr::variant& var);
+  // type get_wrapped(const type& type);
 };
 
-struct StoreQueue
-{
+struct StoreQueue {
   std::queue<std::string_view> store_list;
   const int n_per_run = 100;
 
@@ -95,8 +93,7 @@ struct StoreQueue
   void execute_all();  // 合并batch和不合并batch
 };
 
-class TaskAllocator
-{
+class TaskAllocator {
  public:
   void allocate_all(rttr::instance& inst, ID_TYPE& cid);
   void serialize_all();  // TODO(): 顺序处理tasks, 这个第二遍已经有所有的key
@@ -126,8 +123,7 @@ class TaskAllocator
   bool read_finished = false;
 };
 
-class ToRedis
-{
+class ToRedis {
  public:
   ID_TYPE operator()(instance inst);
 

@@ -4,29 +4,36 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <system_error>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "c2redis/src/json_serialization/batch_from.h"
 #include "c2redis/test/basic_test/initiate.h"
+#include "common.h"
+#include "from_to_redis.h"
+#include "myrttr/argument.h"
+#include "myrttr/instance.h"
 #include "myrttr/property.h"
 #include "myrttr/registration"
 #include "myrttr/registration_friend"
 #include "myrttr/string_view.h"
 #include "myrttr/type"
-#include "myrttr/instance.h"
 #include "myrttr/type.h"
 #include "myrttr/variant.h"
-#include <optional>
-#include <ostream>
-#include <string>
-#include <system_error>
-#include <unordered_map>
-#include <vector>
-
-#include "from_to_redis.h"
 // #include "initiate.h"
 #include "generated/registor.h"
+#include "rapidjson/document.h"
 
 using namespace rttr;
 
 using namespace sw::redis;
+using namespace rapidjson;
 using std::cout;
 using std::endl;
 using std::string;
@@ -157,6 +164,135 @@ int test_shared(TopClass& top)
   }
   return 1;
 }
+variant test_rv()
+{
+  return {};
+}
+int test_variant(BottomClass& bottom)
+{
+  variant var = test_rv();
+  auto x = var.is_valid();
+  variant var_valid(bottom);
+  auto y = var_valid.is_valid();
+  instance inst1(bottom);
+  instance inst2(inst1);
+  auto xx = inst2.get_type().get_property("name").get_value(inst2).to_string();
+  return 0;
+}
+
+int test_from_batch(TopClass& top)
+{
+  // c2redis::ToRedis to_redis;
+  // auto cid = to_redis(top);
+  c2redis::FromRedis from_redis;
+  TopClass top_new;
+  from_redis(top_new, "0x7fffffffe250");
+  // io::from_key("0x7fffffffe180", new_sec);
+  return 0;
+}
+
+int test_json()
+{
+  Value out;
+  {
+    const char* json = R"({
+                "cid": "0x7fffffffe138",
+                "type": "BottomClass",
+                "oj": {
+                  "cid": "0x7fffffffe138",
+                  "type": "BottomClass"
+                }
+            })";
+
+    // Parse JSON data
+    Document document;
+    document.Parse(json);
+
+    // Traverse JSON object
+    if (document.IsObject()) {
+      for (Value::MemberIterator member = document.MemberBegin(); member != document.MemberEnd();
+           ++member) {
+        if (member->value.IsObject()) {
+          auto& val = member->value;
+          val.Swap(out);
+        } else {
+          std::string key = member->value.GetString();  // Get key/name
+          std::cout << "v: " << key << std::endl;
+        }
+      }
+    }
+  }
+  for (Value::MemberIterator member = out.MemberBegin(); member != out.MemberEnd(); ++member) {
+    std::string key = member->value.GetString();  // Get key/name
+    std::cout << "outv: " << key << std::endl;
+  }
+
+  return 0;
+}
+
+int test_move(SecondClass& sec)
+{
+  SecondClass sec_new;
+  instance inst(sec_new);
+
+  instance inst_rep(inst);
+  auto bot = type::get_by_name("BottomClass").create();
+  instance bot_inst(bot);
+  auto sec_t = c2redis::get_wrapped(bot_inst.get_type().get_raw_type());
+  auto sec_prop = sec_t.get_property("second");
+
+  auto ok1 = sec_prop.set_value_raw_ptr(bot_inst, inst.get_object_pointer());
+
+  auto bot_prop = inst.get_type().get_property("bottom");
+  auto valid = bot_prop.get_type().get_name().to_string();
+  auto ext = bot.extract_wrapped_value().get_type();
+
+  auto ok2 = bot_prop.set_value(inst_rep, bot.extract_wrapped_value());
+  auto x = 1;
+  return 0;
+}
+
+template <typename C, typename A>
+class TPoint
+{
+};
+
+template <typename C, typename A>
+class TPoint<C, A(C::*)>
+{
+ public:
+  A x;
+  bool set_ptr(void* p)
+  {
+    if constexpr (std::is_pointer<A>::value) {
+      x = reinterpret_cast<A>(p);
+      return true;
+    } else {
+      return false;
+    }
+  }
+};
+
+int test_argument(SecondClass& sec)
+{
+  int x = 99;
+  int* xp = &x;
+  auto vxp = reinterpret_cast<void*>(xp);
+  TPoint<SecondClass, decltype(&SecondClass::y)> tint;
+  tint.x = 1;
+  auto ret = tint.set_ptr(vxp);
+
+  TPoint<SecondClass, decltype(&SecondClass::bottom)> tbot;
+  auto ret2 = tbot.set_ptr(vxp);
+  return 0;
+}
+
+int test_shared()
+{
+  auto sh = std::make_shared<int>(88);
+  *sh = 99;
+  return 0;
+}
 
 int main()
 {
@@ -185,8 +321,14 @@ int main()
   // test_json(top);
   // test_base(second);
   // test_optional(second);
-  test_batch_to(top);
+  // test_batch_to(top);
   // test_shared(top);
   // test_option2(second);
+  // test_variant(bottom);
+  // test_json();
+  test_from_batch(top);
+  // test_move(second);
+  // test_argument(second);
+  // test_shared();
   return 0;
 }

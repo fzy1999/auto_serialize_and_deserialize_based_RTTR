@@ -48,7 +48,8 @@ property create_item(const property_wrapper_base* wrapper)
 template <>
 property create_invalid_item()
 {
-  static const detail::property_wrapper_base invalid_wrapper(string_view(), detail::get_invalid_type());
+  static const detail::property_wrapper_base invalid_wrapper(string_view(),
+                                                             detail::get_invalid_type());
   return property(&invalid_wrapper);
 }
 
@@ -139,9 +140,10 @@ bool property::set_value(instance object, argument arg) const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-bool property::set_value_raw_ptr(instance object, argument arg) const
+bool property::set_value_raw_ptr(instance object, void* arg) const
 {
   return m_wrapper->set_value_raw_ptr(object, arg);
+  // return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

@@ -50,7 +50,8 @@ class property_wrapper_base;
 }
 
 /*!
- * The \ref property class provides several meta information about a property and gives read/write access to its value.
+ * The \ref property class provides several meta information about a property and gives read/write
+access to its value.
  *
  * A instance of a property class can only be obtained from the \ref type class.
  * See \ref type::get_property() and \ref type::get_properties().
@@ -60,37 +61,41 @@ class property_wrapper_base;
  *
  * Meta Information
  * ----------------
- * A \ref property has a \ref get_name() "name", and a \ref get_type() "type" as well as attributes that specify its
-behavior:
+ * A \ref property has a \ref get_name() "name", and a \ref get_type() "type" as well as attributes
+that specify its behavior:
  * \ref is_readonly(), \ref is_static(), \ref is_enumeration(), \ref is_array().
- * When the \ref property was declared inside a class, then \ref get_declaring_type() can be used to obtain the type of
-this class.
+ * When the \ref property was declared inside a class, then \ref get_declaring_type() can be used to
+obtain the type of this class.
  *
  * The property's values are set and retrieved with \ref set_value() and \ref get_value();
- * When its not a \ref is_static "static property" you have to provide a class instance to set/get the property value.
- * This instance can be the raw type on the stack; the current hierarchy level doesn't matter. It can be also a raw
-pointer to the object or
+ * When its not a \ref is_static "static property" you have to provide a class instance to set/get
+the property value.
+ * This instance can be the raw type on the stack; the current hierarchy level doesn't matter. It
+can be also a raw pointer to the object or
  * a \ref variant which contains the instance, again as pointer or stack object.
- * When the property is declared as \ref is_static "static" you you still have to provide an empty instance object,
- * use therefore the default ctor of \ref instance::instance() "instance()", or as shortcut use simply `{}`.
+ * When the property is declared as \ref is_static "static" you you still have to provide an empty
+instance object,
+ * use therefore the default ctor of \ref instance::instance() "instance()", or as shortcut use
+simply `{}`.
  *
- * A property will be successfully \ref set_value "set" when the provided instance can be converted to the \ref
-get_declaring_type() "declared class" type.
- * The new forwarded property value must 100% match the type of the registered property. An automatically type
-conversion is **not** performed.
+ * A property will be successfully \ref set_value "set" when the provided instance can be converted
+to the \ref get_declaring_type() "declared class" type.
+ * The new forwarded property value must 100% match the type of the registered property. An
+automatically type conversion is **not** performed.
  *
  * The return type of \ref get_value() is \ref variant object.
- * This object contains not only the value of the property, it also indicates whether the property value could be
-retrieved or not.
- * A \ref variant::is_valid "valid" variant object means, that the property was successfully retrieved, otherwise not.
+ * This object contains not only the value of the property, it also indicates whether the property
+value could be retrieved or not.
+ * A \ref variant::is_valid "valid" variant object means, that the property was successfully
+retrieved, otherwise not.
  *
- * Another way to get access a property is through \ref type "type's" set and get functions. See \ref
-type::set_property_value() and type::get_property_value() for details.
+ * Another way to get access a property is through \ref type "type's" set and get functions. See
+\ref type::set_property_value() and type::get_property_value() for details.
  *
  * Copying and Assignment
  * ----------------------
- * A \ref property object is lightweight and can be copied by value. However, each copy will refer to the same
-underlying property.
+ * A \ref property object is lightweight and can be copied by value. However, each copy will refer
+to the same underlying property.
  *
  * Typical Usage
  * ----------------------
@@ -141,7 +146,8 @@ class RTTR_API property
    * \brief Returns the access level with which this property was
    *        \ref registration::class_<T>::property() "registered".
    *
-   * \remark When the property is not valid, this function will return level \ref access_levels::public_access.
+   * \remark When the property is not valid, this function will return level \ref
+   * access_levels::public_access.
    *
    * \return \ref access_levels of the property.
    */
@@ -206,9 +212,9 @@ class RTTR_API property
   /*!
    * \brief Returns the \ref type of the class or struct that declares this property.
    *
-   * \remark When this property does not belong to a class (i.e. is a global property) it will return an invalid type
-   * object. When this property is not valid, this function will return an invalid type object (see \ref
-   * type::is_valid).
+   * \remark When this property does not belong to a class (i.e. is a global property) it will
+   * return an invalid type object. When this property is not valid, this function will return an
+   * invalid type object (see \ref type::is_valid).
    *
    * \return \ref type "Type" of the declaring class/struct for this property.
    */
@@ -217,8 +223,8 @@ class RTTR_API property
   /*!
    * \brief Set the property of the given instance \p object to the given value \p arg.
    *
-   * \remark  When the property is declared as \ref is_readonly "read only" this function will return false.
-   *          When you have a static property just pass an empty instance as object argument.
+   * \remark  When the property is declared as \ref is_readonly "read only" this function will
+   * return false. When you have a static property just pass an empty instance as object argument.
    *          When the property is not valid, this function will return false.
    *
    * \see get_value().
@@ -275,14 +281,15 @@ class RTTR_API property
    */
   void* get_object_pointer(instance& object) const;
   /**
-   * @brief Set the value raw ptr object----->caution!: may cause undefine memory settlement; just for restore pointer!!
+   * @brief Set the value raw ptr object----->caution!: may cause undefine memory settlement; just
+   * for restore pointer!!
    *
    * @param object
    * @param arg
    * @return true
    * @return false
    */
-  bool set_value_raw_ptr(instance object, argument arg) const;
+  bool set_value_raw_ptr(instance object, void* arg) const;
 
  private:
   //! Constructs a property from a property_wrapper_base.

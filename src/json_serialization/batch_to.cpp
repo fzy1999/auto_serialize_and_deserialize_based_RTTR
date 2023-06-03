@@ -1,4 +1,5 @@
 #include "batch_to.h"
+
 #include <cassert>
 #include <cstdio>
 #include <iostream>
@@ -7,33 +8,31 @@
 #include <ostream>
 #include <thread>
 #include <utility>
+
+#include "../redis_helper/redis_helper.h"
+#include "ThreadPool/ThreadPool.h"
 #include "common.h"
 #include "myrttr/instance.h"
-#include "ThreadPool/ThreadPool.h"
 #include "myrttr/string_view.h"
-#include "../redis_helper/redis_helper.h"
 namespace c2redis {
-ID_TYPE TaskDict::generate_key(void* ptr)
-{
+ID_TYPE TaskDict::generate_key(void* ptr) {
   char buffer[8];
   sprintf(buffer, "%p", ptr);
   return std::move(buffer);
 }
 
-void TaskDict::add_task(void* ptr, TASK_PTR task)
-{
+void TaskDict::add_task(void* ptr, TASK_PTR task) {
   assert(task);
   _dict[ptr] = task;
   _tasks.push_back(task);
 }
 
-inline instance TaskDict::get_wrapped(const instance& inst)
-{
-  return inst.get_type().get_raw_type().is_wrapper() ? inst.get_wrapped_instance() : inst;
-}
+// inline instance TaskDict::get_wrapped(const instance& inst)
+// {
+//   return inst.get_type().get_raw_type().is_wrapper() ? inst.get_wrapped_instance() : inst;
+// }
 
-TASK_PTR TaskDict::get_next()
-{
+TASK_PTR TaskDict::get_next() {
   if (walker == tail) {
     tail = _tasks.size();
     level++;
@@ -43,24 +42,19 @@ TASK_PTR TaskDict::get_next()
 }
 
 // TODO():
-void TaskDict::serialize_all()
-{
-}
+void TaskDict::serialize_all() {}
 
-TASK_PTR TaskDict::get_next_unstore()
-{
+TASK_PTR TaskDict::get_next_unstore() {
   assert(keeper < reader);
   return _tasks[keeper++];
 }
 
-inline TASK_PTR TaskDict::get_next_unread()
-{
+inline TASK_PTR TaskDict::get_next_unread() {
   assert(reader < walker);
   return _tasks[reader++];
 }
 // check and get
-TASK_PTR TaskDict::add_key(const instance& inst)
-{
+TASK_PTR TaskDict::add_key(const instance& inst) {
   // auto inst = task->inst;
   if (!inst.is_valid()) {
     return nullptr;
@@ -89,8 +83,7 @@ TASK_PTR TaskDict::add_key(const instance& inst)
   return _dict[key];
 }
 
-TASK_PTR TaskDict::get_key(const instance& inst)
-{
+TASK_PTR TaskDict::get_key(const instance& inst) {
   if (!inst.is_valid()) {
     return nullptr;
   }
@@ -112,8 +105,7 @@ TASK_PTR TaskDict::get_key(const instance& inst)
 }
 
 // only allocate key and set to map
-void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid)
-{
+void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid) {
   auto start = std::chrono::high_resolution_clock::now();
 
   auto root = dict.add_key(inst);
@@ -134,8 +126,7 @@ void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid)
   alloc_finished = true;
 }
 
-void TaskAllocator::serialize_all()
-{
+void TaskAllocator::serialize_all() {
   auto start = std::chrono::high_resolution_clock::now();
 
   // ThreadPool pool(thread_num);
@@ -150,7 +141,7 @@ void TaskAllocator::serialize_all()
     // std::cout << sb.GetString() << std::endl;
     //////////////
     if (task->cname.empty()) {
-      task->cname = dict.get_wrapped(task->inst).get_derived_type().get_raw_type().get_name().to_string();
+      task->cname = get_wrapped(task->inst).get_derived_type().get_raw_type().get_name().to_string();
     }
   };
   int seri_count = 0;
@@ -170,8 +161,7 @@ void TaskAllocator::serialize_all()
             << std::flush;
 }
 
-void TaskAllocator::store_all()
-{
+void TaskAllocator::store_all() {
   auto start = std::chrono::high_resolution_clock::now();
 
   auto aux = RedisAux::GetRedisAux();
@@ -191,17 +181,16 @@ void TaskAllocator::store_all()
   std::cout << "stored total:" << store_count << "const time: " << duration(start, end) << std::endl << std::flush;
 }
 
-void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuffer>& writer) {
   if (!var.is_valid() || var.get_raw_ptr_tmp() == nullptr) {
     writer.Null();
   }
-  auto wrapped_val = dict.get_wrapped(var);
+  auto wrapped_val = get_wrapped(var);
   if (wrapped_val.is_associative_container()) {
     serialize_associative_container(wrapped_val.create_associative_view(), writer);
   } else if (wrapped_val.is_sequential_container()) {
     serialize_sequential_container(wrapped_val.create_sequential_view(), writer);
-  } else if (dict.get_wrapped(wrapped_val.get_type()).is_pointer()) {
+  } else if (get_wrapped(wrapped_val.get_type()).is_pointer()) {
     serialize_pointer(wrapped_val, writer);
   } else if (serialize_atomic(wrapped_val, writer)) {
   } else {
@@ -213,15 +202,13 @@ void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuf
   }
 }
 
-void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringBuffer>& writer)
-{
+void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringBuffer>& writer) {
   writer.StartObject();
-  auto wrapped = dict.get_wrapped(obj);
+  auto wrapped = get_wrapped(obj);
   auto prop_list = wrapped.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     rttr::variant prop_value = prop.get_value(obj);
-    if (!prop_value)
-      continue;
+    if (!prop_value) continue;
     const auto name = prop.get_name();
     writer.String(name.data(), static_cast<rapidjson::SizeType>(name.length()), false);
     serialize_variant(prop_value, writer);
@@ -229,8 +216,7 @@ void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringB
   writer.EndObject();
 }
 
-bool TaskAllocator::serialize_pointer(const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+bool TaskAllocator::serialize_pointer(const variant& var, PrettyWriter<StringBuffer>& writer) {
   auto task = dict.get_key(var);
   if (!task) {
     writer.Null();
@@ -243,8 +229,7 @@ bool TaskAllocator::serialize_pointer(const variant& var, PrettyWriter<StringBuf
   return true;
 }
 
-bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuffer>& writer) {
   auto t = var.get_type();
   if (t.is_arithmetic()) {
     if (t == type::get<bool>())
@@ -300,8 +285,7 @@ bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuff
 }
 
 void TaskAllocator::serialize_associative_container(const variant_associative_view& view,
-                                                    PrettyWriter<StringBuffer>& writer)
-{
+                                                    PrettyWriter<StringBuffer>& writer) {
   static const string_view key_name("key");
   static const string_view value_name("value");
   writer.StartArray();
@@ -327,8 +311,7 @@ void TaskAllocator::serialize_associative_container(const variant_associative_vi
 }
 
 void TaskAllocator::serialize_sequential_container(const variant_sequential_view& view,
-                                                   PrettyWriter<StringBuffer>& writer)
-{
+                                                   PrettyWriter<StringBuffer>& writer) {
   writer.StartArray();
   for (const auto& item : view) {
     serialize_variant(item, writer);
@@ -337,29 +320,27 @@ void TaskAllocator::serialize_sequential_container(const variant_sequential_view
 }
 
 // TODO():
-void TaskAllocator::allocate_associative_container(const rttr::variant_associative_view& view)
-{
+void TaskAllocator::allocate_associative_container(const rttr::variant_associative_view& view) {
   if (view.is_key_only_type()) {
     for (const auto& item : view) {
-      if (!dict.get_wrapped(item.first.get_type()).is_pointer()) {
+      if (!get_wrapped(item.first.get_type()).is_pointer()) {
         return;
       }
       create_task(item.first.extract_wrapped_value());
     }
   } else {
     for (auto& item : view) {
-      if (dict.get_wrapped(item.first.get_type()).is_pointer()) {
+      if (get_wrapped(item.first.get_type()).is_pointer()) {
         create_task(item.first.extract_wrapped_value());
       }
-      if (dict.get_wrapped(item.second.get_type()).is_pointer()) {
+      if (get_wrapped(item.second.get_type()).is_pointer()) {
         create_task(item.second.extract_wrapped_value());
       }
     }
   }
 }
 
-void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential_view& view)
-{
+void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential_view& view) {
   auto n = view.get_size();
   for (const auto& item : view) {
     if (item.is_sequential_container()) {
@@ -367,7 +348,7 @@ void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential
     } else if (item.is_associative_container()) {
       allocate_associative_container(item.create_associative_view());
     } else {
-      auto type = dict.get_wrapped(item.get_type());
+      auto type = get_wrapped(item.get_type());
       if (type.is_pointer()) {
         create_task(item.extract_wrapped_value());
       }
@@ -375,58 +356,54 @@ void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential
   }
 }
 
-void TaskAllocator::allocate_instance(const instance& obj)
-{
+void TaskAllocator::allocate_instance(const instance& obj) {
   auto name = obj.get_type().get_name().to_string();
-  auto wrapped = dict.get_wrapped(obj);
+  auto wrapped = get_wrapped(obj);
   auto prop_list = wrapped.get_derived_type().get_properties();
   auto n = prop_list.size();
   for (auto prop : prop_list) {
     rttr::variant prop_value = prop.get_value(obj);
-    if (!prop_value)
-      continue;
-    auto wrapped_val = dict.get_wrapped(prop_value);
-    auto propname = dict.get_wrapped(wrapped_val.get_type());
+    if (!prop_value) continue;
+    auto wrapped_val = get_wrapped(prop_value);
+    auto propname = get_wrapped(wrapped_val.get_type());
 
     auto name_prop = wrapped_val.get_type().get_name().to_string();
     if (wrapped_val.is_associative_container()) {
       allocate_associative_container(wrapped_val.create_associative_view());
     } else if (wrapped_val.is_sequential_container()) {
       allocate_sequential_container(wrapped_val.create_sequential_view());
-    } else if (dict.get_wrapped(wrapped_val.get_type()).is_pointer()) {
+    } else if (get_wrapped(wrapped_val.get_type()).is_pointer()) {
       create_task(wrapped_val);
-    } else if (dict.get_wrapped(wrapped_val.get_type()).is_class()) {
+    } else if (get_wrapped(wrapped_val.get_type()).is_class()) {
       allocate_instance(wrapped_val);
     }
   }
 }
 
-rttr::variant TaskDict::get_wrapped(const rttr::variant& var)
-{
-  auto value_type = var.get_type();
-  auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
-  bool is_wrapper = wrapped_type != value_type;
-  return is_wrapper ? var.extract_wrapped_value() : var;
-}
+// rttr::variant TaskDict::get_wrapped(const rttr::variant& var)
+// {
+//   auto value_type = var.get_type();
+//   auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
+//   bool is_wrapper = wrapped_type != value_type;
+//   return is_wrapper ? var.extract_wrapped_value() : var;
+// }
 
-type TaskDict::get_wrapped(const type& value_type)
-{
-  // auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
-  auto wrapped_type = value_type;
-  while (wrapped_type.is_wrapper()) {
-    wrapped_type = wrapped_type.get_wrapped_type();
-  }
-  return wrapped_type;
-}
+// type TaskDict::get_wrapped(const type& value_type)
+// {
+//   // auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
+//   auto wrapped_type = value_type;
+//   while (wrapped_type.is_wrapper()) {
+//     wrapped_type = wrapped_type.get_wrapped_type();
+//   }
+//   return wrapped_type;
+// }
 
-void TaskAllocator::create_task(const rttr::variant& val)
-{
+void TaskAllocator::create_task(const rttr::variant& val) {
   // caution!!! when pass a item like val in view , extract_wrapped_value is nessary!
   dict.add_key(val);  // dont we need return?
 }
 
-bool TaskAllocator::write_optinal_types_to_json(const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+bool TaskAllocator::write_optinal_types_to_json(const variant& var, PrettyWriter<StringBuffer>& writer) {
   if (var.is_type<std::optional<bool>>())
     writer.Bool(var.get_value<bool>());
   else if (var.is_type<std::optional<char>>())
@@ -459,8 +436,7 @@ bool TaskAllocator::write_optinal_types_to_json(const variant& var, PrettyWriter
   return true;
 }
 
-ID_TYPE ToRedis::operator()(instance inst)
-{
+ID_TYPE ToRedis::operator()(instance inst) {
   ID_TYPE cid;
   std::thread alloc_thread(&ToRedis::call_alloc, this, std::ref(inst), std::ref(cid));
   alloc_thread.join();
@@ -471,19 +447,10 @@ ID_TYPE ToRedis::operator()(instance inst)
   return cid;
 }
 
-inline void ToRedis::call_alloc(rttr::instance& inst, ID_TYPE& cid)
-{
-  allocator.allocate_all(inst, cid);
-}
+inline void ToRedis::call_alloc(rttr::instance& inst, ID_TYPE& cid) { allocator.allocate_all(inst, cid); }
 
-inline void ToRedis::call_serialize_all()
-{
-  allocator.serialize_all();
-}
+inline void ToRedis::call_serialize_all() { allocator.serialize_all(); }
 
-inline void ToRedis::call_store()
-{
-  allocator.store_all();
-}
+inline void ToRedis::call_store() { allocator.store_all(); }
 
 }  // namespace c2redis

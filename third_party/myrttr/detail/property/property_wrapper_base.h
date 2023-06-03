@@ -82,7 +82,7 @@ class RTTR_API property_wrapper_base
 
   virtual void* get_object_pointer(instance& object) const { return nullptr; }
 
-  virtual bool set_value_raw_ptr(instance& object, argument& arg) const;
+  virtual bool set_value_raw_ptr(instance& object, void* arg) const;
 
  protected:
   void init() RTTR_NOEXCEPT;

@@ -116,7 +116,7 @@ bool property_wrapper_base::set_value(instance& object, argument& arg) const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-bool property_wrapper_base::set_value_raw_ptr(instance& object, argument& arg) const
+bool property_wrapper_base::set_value_raw_ptr(instance& object, void* arg) const
 {
   return false;
 }

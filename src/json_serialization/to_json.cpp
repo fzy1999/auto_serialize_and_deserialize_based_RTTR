@@ -1,7 +1,3 @@
-#include "common.h"
-#include "myrttr/instance.h"
-#include "myrttr/variant.h"
-#include "myrttr/type"
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -12,13 +8,18 @@
 #include <utility>
 #include <vector>
 
+#include "common.h"
+#include "myrttr/instance.h"
+#include "myrttr/type"
+#include "myrttr/variant.h"
+
 #define RAPIDJSON_HAS_STDSTRING 1
 #include <rapidjson/document.h>      // rapidjson's DOM-style API
 #include <rapidjson/prettywriter.h>  // for stringify JSON
+#include <uuid/uuid.h>
 
 #include "../redis_helper/redis_helper.h"
 #include "to_json.h"
-#include <uuid/uuid.h>
 
 using namespace rapidjson;
 using namespace rttr;
@@ -31,8 +32,7 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-inline type get_wrapped_type(const type& type2)
-{
+inline type get_wrapped_type(const type& type2) {
   return type2.is_wrapper() ? type2.get_wrapped_type().get_raw_type() : type2.get_raw_type();
 }
 
@@ -42,8 +42,7 @@ std::map<const void*, ID_TYPE> g_key_storage;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-class GKeyMutex
-{
+class GKeyMutex {
   std::mutex _g_key_mutex;
 
  public:
@@ -51,16 +50,14 @@ class GKeyMutex
   ~GKeyMutex() { _g_key_mutex.unlock(); }
 };
 
-ID_TYPE generate_g_key()
-{
+ID_TYPE generate_g_key() {
   uuid_t uuid;
   uuid_generate_time_safe(uuid);
   char str[37];
   uuid_unparse(uuid, str);
   return std::string(str);
 }
-bool get_g_key(const instance& inst, ID_TYPE& cid)
-{
+bool get_g_key(const instance& inst, ID_TYPE& cid) {
   if (!inst.is_valid()) {
     return true;
   }
@@ -95,8 +92,7 @@ bool get_g_key(const instance& inst, ID_TYPE& cid)
 ID_TYPE to_json_recursively(const instance& obj);
 /////////////////////////////////////////////////////////////////////////////////////////
 
-void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringBuffer>& writer) {
   if (cid == std::nullopt) {
     // null pointer
     c2redis::NullHolder nullholder;
@@ -110,17 +106,18 @@ void write_IdHolder(const ID_TYPE& cid, const variant& var, PrettyWriter<StringB
   if (derive_type.is_pointer()) {
     derive_type = derive_type.get_raw_type();
   }
-  c2redis::IdHolder holder{*cid, derive_type.get_name().to_string()};
-  to_json_recursively(holder, writer);
+  auto dtype = derive_type.get_name().to_string();
+  writer.StartObject();
+  writer.String(cid->data(), static_cast<rapidjson::SizeType>(cid->size()), false);
+  writer.String(dtype.data(), static_cast<rapidjson::SizeType>(dtype.size()), false);
+  writer.EndObject();
+  // c2redis::IdHolder holder{*cid, derive_type.get_name().to_string()};
+  // to_json_recursively(holder, writer);
 }
 
-bool is_optional(const type& t)
-{
-  return t.get_name().to_string().find("optional") != string::npos;
-}
+bool is_optional(const type& t) { return t.get_name().to_string().find("optional") != string::npos; }
 
-bool write_optinal_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+bool write_optinal_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer) {
   if (is_optional(t)) {
     if (var.is_type<std::optional<bool>>())
       writer.Bool(var.get_value<bool>());
@@ -154,8 +151,7 @@ bool write_optinal_types_to_json(const type& t, const variant& var, PrettyWriter
   return false;
 }
 
-bool write_atomic_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+bool write_atomic_types_to_json(const type& t, const variant& var, PrettyWriter<StringBuffer>& writer) {
   if (t.is_arithmetic()) {
     if (t == type::get<bool>())
       writer.Bool(var.to_bool());
@@ -211,8 +207,7 @@ bool write_atomic_types_to_json(const type& t, const variant& var, PrettyWriter<
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-static void write_array(const variant_sequential_view& view, PrettyWriter<StringBuffer>& writer)
-{
+static void write_array(const variant_sequential_view& view, PrettyWriter<StringBuffer>& writer) {
   writer.StartArray();
   for (const auto& item : view) {
     if (item.is_sequential_container()) {
@@ -236,8 +231,7 @@ static void write_array(const variant_sequential_view& view, PrettyWriter<String
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-static void write_associative_container(const variant_associative_view& view, PrettyWriter<StringBuffer>& writer)
-{
+static void write_associative_container(const variant_associative_view& view, PrettyWriter<StringBuffer>& writer) {
   static const string_view key_name("key");
   static const string_view value_name("value");
 
@@ -266,15 +260,13 @@ static void write_associative_container(const variant_associative_view& view, Pr
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-string get_optional_type(const string& str)
-{
+string get_optional_type(const string& str) {
   size_t start_pos = str.find("<");
   size_t end_pos = str.find(">", start_pos);
   return str.substr(start_pos + 1, end_pos - start_pos - 1);
 }
 
-variant strip_optional(const variant& var)
-{
+variant strip_optional(const variant& var) {
   auto name = get_optional_type(var.get_type().get_name().to_string());
   variant copied = var;
   auto striped = type::get_by_name(name).create();
@@ -284,8 +276,7 @@ variant strip_optional(const variant& var)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
-{
+ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer) {
   auto value_type = var.get_type();
   auto wrapped_type = value_type.is_wrapper() ? value_type.get_wrapped_type() : value_type;
   bool is_wrapper = wrapped_type != value_type;
@@ -336,8 +327,7 @@ ID_TYPE write_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
 // int before_count = 0;
 int total = 0;
 int level = 0;
-ID_TYPE to_json_recursively(const instance& obj2)
-{
+ID_TYPE to_json_recursively(const instance& obj2) {
   ID_TYPE cid = std::nullopt;
   if (get_g_key(obj2, cid)) {
     return cid;
@@ -350,12 +340,10 @@ ID_TYPE to_json_recursively(const instance& obj2)
   c2redis::debug_log(1, obj.get_type().get_name().to_string());
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
-    if (prop.get_metadata("NO_SERIALIZE"))
-      continue;
+    if (prop.get_metadata("NO_SERIALIZE")) continue;
     c2redis::debug_log(2, "dealing prop: " + prop.get_type().get_name().to_string());
     variant prop_value = prop.get_value(obj);
-    if (!prop_value)
-      continue;  // cannot serialize, because we cannot retrieve the value
+    if (!prop_value) continue;  // cannot serialize, because we cannot retrieve the value
 
     const auto name = prop.get_name();
     writer.String(name.data(), static_cast<rapidjson::SizeType>(name.length()), false);
@@ -381,19 +369,16 @@ ID_TYPE to_json_recursively(const instance& obj2)
   return cid;
 }
 
-void to_json_recursively(const instance& obj2, PrettyWriter<StringBuffer>& writer)
-{
+void to_json_recursively(const instance& obj2, PrettyWriter<StringBuffer>& writer) {
   writer.StartObject();
   instance obj = obj2.get_type().get_raw_type().is_wrapper() ? obj2.get_wrapped_instance() : obj2;
 
   auto prop_list = obj.get_derived_type().get_properties();
   for (auto prop : prop_list) {
-    if (prop.get_metadata("NO_SERIALIZE"))
-      continue;
+    if (prop.get_metadata("NO_SERIALIZE")) continue;
 
     variant prop_value = prop.get_value(obj);
-    if (!prop_value)
-      continue;  // cannot serialize, because we cannot retrieve the value
+    if (!prop_value) continue;  // cannot serialize, because we cannot retrieve the value
 
     const auto name = prop.get_name();
     writer.String(name.data(), static_cast<rapidjson::SizeType>(name.length()), false);
@@ -415,10 +400,8 @@ namespace io {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-ID_TYPE to_json(rttr::instance obj)
-{
-  if (!obj.is_valid())
-    return "0";
+ID_TYPE to_json(rttr::instance obj) {
+  if (!obj.is_valid()) return "0";
 
   // StringBuffer sb;
   // PrettyWriter<StringBuffer> writer(sb);

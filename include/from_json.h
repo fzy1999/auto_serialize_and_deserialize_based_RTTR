@@ -1,6 +1,8 @@
 #include <string>
-#include "myrttr/type"
+#include <vector>
+
 #include "common.h"
+#include "myrttr/type"
 
 namespace io {
 /*!
@@ -17,5 +19,7 @@ bool from_json(const std::string& json, rttr::instance obj);
  * @return false
  */
 bool from_key(const std::string& key, rttr::instance obj);
+
+bool from_key(const std::string& key, rttr::instance obj, std::vector<std::string>&&);
 
 }  // namespace io
