@@ -14,6 +14,9 @@
 #include "myrttr/instance.h"
 #include "myrttr/type"
 #include "myrttr/variant.h"
+#include "myrttr/variant_sequential_view.h"
+#include "rttr/property.h"
+#include "rttr/variant_associative_view.h"
 #define RAPIDJSON_HAS_STDSTRING 1
 #include <rapidjson/document.h>      // rapidjson's DOM-style API
 #include <rapidjson/prettywriter.h>  // for stringify JSON
@@ -48,7 +51,7 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   FTASK_PTR _ptask;
   string _prop_name;
   string _raw_type;
-  Value _json_val;
+  // Value _json_val;
   string _cid;
   string _json;
 
@@ -59,12 +62,36 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   virtual void assemble_to_parent(const FTASK_PTR& pparent, const string& prop_name){};
   virtual void assemble_to_parent(){};
   bool already_restore_object(FTaskQue& tasks, const string& cid);
-  virtual void parse_id_type(){};
+  virtual void parse_id_type(Value&){};
   virtual bool set_value(const shared_ptr<variant>& pvar, const string& prop_name)
   {
     return false;
   };
   virtual bool set_value_raw_ptr(void* pvar, const string& prop_name) { return false; };
+  void create_sequential_task(const string& propname, rttr::variant& var, Value& json_value,
+                              FTaskQue& tasks);
+  void create_associative_task(const string& propname, rttr::variant& var, Value& json_value,
+                               FTaskQue& tasks);
+  virtual bool set_value(const shared_ptr<variant>& pvar, int index) { return false; };
+  virtual bool set_value_raw_ptr(void* pvar, int index) { return false; };
+  virtual bool set_kv(const shared_ptr<variant>& pvar, const string& key) { return false; };
+  virtual bool set_kv_raw_ptr(void* pvar, const string& key) { return false; };
+  variant get_extracted(const shared_ptr<variant>& pvar, const rttr::type& ptype)
+  {
+    auto vart = pvar->get_type();
+    if (vart == ptype) {
+      return *pvar;
+    }
+    if (vart.is_wrapper() && ptype.is_wrapper()
+        && get_wrapped(vart).is_derived_from(get_wrapped(ptype))) {
+      return *pvar;
+    }
+    variant exvar = *pvar;
+    if (vart.is_wrapper()) {
+      exvar = pvar->extract_wrapped_value();
+    }
+    return std::move(exvar);
+  }
 };
 
 class FmRootTaks : public FromTask
@@ -76,7 +103,7 @@ class FmRootTaks : public FromTask
   void collect(FTaskQue& tasks) override;
   void assemble_to_parent(const FTASK_PTR& pparent, const string& prop_name) override;
   void assemble_to_parent() override;
-  void parse_id_type() override;
+  void parse_id_type(Value& var) override;
   bool set_value(const shared_ptr<variant>& pvar, const string& prop_name) override;
 };
 
@@ -87,11 +114,34 @@ class FmObjectTask : public FromTask
       : FromTask(std::move(prop_name), std::move(parent)){};
   void request_json() override;
   void collect(FTaskQue& tasks) override;
-  void parse_id_type() override;
+  void parse_id_type(Value&) override;
   void assemble_to_parent(const FTASK_PTR& pparent, const string& prop_name) override;
   void assemble_to_parent() override;
   bool set_value(const shared_ptr<variant>& pvar, const string& prop_name) override;
   bool set_value_raw_ptr(void* pvar, const string& prop_name) override;
+};
+
+class FmSequetialObjectTask : public FmObjectTask
+{
+ public:
+  FmSequetialObjectTask(int index, FTASK_PTR parent)
+      : FmObjectTask("", std::move(parent)), _index(index){};
+  void collect(FTaskQue& tasks) override;
+  // void assemble_to_parent(const FTASK_PTR& pparent, const string& prop_name) override;
+  void assemble_to_parent() override;
+
+  int _index = -1;
+};
+
+class FmAssociativeObjectTask : public FmObjectTask
+{
+ public:
+  FmAssociativeObjectTask(string& key, FTASK_PTR parent)
+      : FmObjectTask("", std::move(parent)), _key(key){};
+  void collect(FTaskQue& tasks) override;
+  void assemble_to_parent() override;
+
+  string _key;
 };
 
 class FmSequetialTask : public FromTask
@@ -101,11 +151,17 @@ class FmSequetialTask : public FromTask
       : FromTask(std::move(prop_name), std::move(parent)){};
   vector<string> _cids;
   vector<std::optional<string>> _jsons;
-  vector<std::optional<string>> _types;
+  vector<string> _types;
+  rttr::variant_sequential_view _view;
+  // need how many to be init
+  size_t _need = 0;
 
   void request_json() override;
   void collect(FTaskQue& tasks) override;
-  void parse_id_type() override;
+  void parse_id_type(Value& var) override;
+  void assemble_to_parent() override;
+  bool set_value(const shared_ptr<variant>& pvar, int index) override;
+  bool set_value_raw_ptr(void* pvar, int index) override;
 };
 
 // TODO(): support only type like <basic, object>
@@ -116,11 +172,18 @@ class FmAssociativeTask : public FromTask
       : FromTask(std::move(prop_name), std::move(parent)){};
   vector<string> _cids;
   vector<std::optional<string>> _jsons;
-  vector<std::optional<string>> _types;
+  vector<string> _types;
+  vector<string> _keys;
+  rttr::variant_associative_view _view;
+  size_t _need = 0;
 
   void request_json() override;
   void collect(FTaskQue& tasks) override;
-  void parse_id_type() override;
+  void parse_id_type(Value&) override;
+  // TODO():
+  void assemble_to_parent() override;
+  bool set_kv(const shared_ptr<variant>& pvar, const string& key) override;
+  bool set_kv_raw_ptr(void* pvar, const string& key) override;
 };
 
 struct FTaskQue

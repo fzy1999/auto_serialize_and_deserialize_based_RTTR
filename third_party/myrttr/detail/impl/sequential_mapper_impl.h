@@ -32,7 +32,9 @@
 #include "myrttr/detail/misc/iterator_wrapper.h"
 #include "myrttr/detail/misc/sequential_container_type_traits.h"
 
+#include "myrttr/type.h"
 #include "myrttr/variant.h"
+#include <memory>
 #include <type_traits>
 
 #include <vector>
@@ -49,9 +51,9 @@ namespace detail {
 /////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename ConstType,
-          typename Tp
-          = conditional_t<std::is_const<ConstType>::value, typename sequential_container_mapper<T>::const_itr_t,
-                          typename sequential_container_mapper<T>::itr_t>>
+          typename Tp = conditional_t<std::is_const<ConstType>::value,
+                                      typename sequential_container_mapper<T>::const_itr_t,
+                                      typename sequential_container_mapper<T>::itr_t>>
 struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
 {
   using base_class = sequential_container_mapper<T>;
@@ -60,29 +62,37 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
   using const_itr_t = typename base_class::const_itr_t;
   using itr_wrapper = iterator_wrapper_base<Tp>;
 
-  static ConstType& get_container(void* container) { return *reinterpret_cast<ConstType*>(container); }
+  static ConstType& get_container(void* container)
+  {
+    return *reinterpret_cast<ConstType*>(container);
+  }
 
-  template <
-      typename..., typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
-      enable_if_t<std::is_reference<ReturnType>::value && !std::is_array<remove_reference_t<ReturnType>>::value, int>
-      = 0>
+  template <typename...,
+            typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
+            enable_if_t<std::is_reference<ReturnType>::value
+                            && !std::is_array<remove_reference_t<ReturnType>>::value,
+                        int>
+            = 0>
   static variant get_data(const iterator_data& itr)
   {
     auto& it = itr_wrapper::get_iterator(itr);
     return variant(std::ref(base_class::get_data(it)));
   }
 
-  template <
-      typename..., typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
-      enable_if_t<std::is_reference<ReturnType>::value && std::is_array<remove_reference_t<ReturnType>>::value, int>
-      = 0>
+  template <typename...,
+            typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
+            enable_if_t<std::is_reference<ReturnType>::value
+                            && std::is_array<remove_reference_t<ReturnType>>::value,
+                        int>
+            = 0>
   static variant get_data(const iterator_data& itr)
   {
     auto& it = itr_wrapper::get_iterator(itr);
     return variant(std::ref(base_class::get_data(it)));
   }
 
-  template <typename..., typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
+  template <typename...,
+            typename ReturnType = decltype(base_class::get_data(std::declval<itr_t>())),
             enable_if_t<!std::is_reference<ReturnType>::value, int> = 0>
   static variant get_data(const iterator_data& itr)
   {
@@ -114,7 +124,10 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
       return get_invalid_type();
   }
 
-  static std::size_t get_size(void* container) { return base_class::get_size(get_container(container)); }
+  static std::size_t get_size(void* container)
+  {
+    return base_class::get_size(get_container(container));
+  }
 
   /////////////////////////////////////////////////////////////////////////
 
@@ -150,7 +163,8 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
   template <typename..., typename C = ConstType, enable_if_t<!std::is_const<C>::value, int> = 0>
   static void erase(void* container, const iterator_data& itr_pos, iterator_data& itr)
   {
-    const auto ret = base_class::erase(get_container(container), itr_wrapper::get_iterator(itr_pos));
+    const auto ret
+        = base_class::erase(get_container(container), itr_wrapper::get_iterator(itr_pos));
     itr_wrapper::create(itr, ret);
   }
 
@@ -164,7 +178,8 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
   /////////////////////////////////////////////////////////////////////////
 
   template <typename..., typename C = ConstType, enable_if_t<!std::is_const<C>::value, int> = 0>
-  static void insert(void* container, argument& value, const iterator_data& itr_pos, iterator_data& itr)
+  static void insert(void* container, argument& value, const iterator_data& itr_pos,
+                     iterator_data& itr)
   {
     if (value.get_type() == ::rttr::type::get<value_t>()) {
       auto ret = base_class::insert(get_container(container), value.get_value<value_t>(),
@@ -176,64 +191,85 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
   }
 
   template <typename..., typename C = ConstType, enable_if_t<std::is_const<C>::value, int> = 0>
-  static void insert(void* container, argument& value, const iterator_data& itr_pos, iterator_data& itr)
+  static void insert(void* container, argument& value, const iterator_data& itr_pos,
+                     iterator_data& itr)
   {
     end(container, itr);
   }
 
   /////////////////////////////////////////////////////////////////////////
+
   // is_const<T> is used because of std::initializer_list, it can only return a constant value
-  template <typename..., typename C = ConstType,
-            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-            enable_if_t<!std::is_const<C>::value && !std::is_array<remove_reference_t<ReturnType>>::value
-                            && !std::is_const<remove_reference_t<ReturnType>>::value,
-                        int>
-            = 0>
+  template <typename ST>
+  struct remove_shared
+  {
+    using type = ST;
+  };
+  template <typename ST>
+  struct remove_shared<std::shared_ptr<ST>>
+  {
+    using type = ST;
+  };
+  template <
+      typename..., typename C = ConstType,
+      typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+      enable_if_t<!std::is_const<C>::value && !std::is_array<remove_reference_t<ReturnType>>::value
+                      && !std::is_const<remove_reference_t<ReturnType>>::value,
+                  int>
+      = 0>
   static bool set_value(void* container, std::size_t index, argument& value)
   {
     auto vt = value.get_type();
     auto vv = ::rttr::type::get<value_t>();
-    // auto is_derived = vt.is_derived_from(vv);
     if (value.get_type() == ::rttr::type::get<value_t>() || vt.is_derived_from(vv)) {
-      // auto xx = value.get_value<value_t>();
       base_class::get_value(get_container(container), index) = value.get_value<value_t>();
       return true;
-    } else {
-      return false;
+    } else if (vt.is_wrapper()
+               && vt.get_wrapped_type().is_derived_from(
+                   ::rttr::type::get<typename remove_shared<value_t>::type>())) {
+      base_class::get_value(get_container(container), index) = value.get_value<value_t>();
+      return true;
     }
+    return false;
   }
 
-  template <typename..., typename C = ConstType,
-            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-            enable_if_t<!std::is_const<C>::value && !std::is_array<remove_reference_t<ReturnType>>::value
-                            && !std::is_const<remove_reference_t<ReturnType>>::value,
-                        int>
-            = 0>
+  template <
+      typename..., typename C = ConstType,
+      typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+      enable_if_t<!std::is_const<C>::value && !std::is_array<remove_reference_t<ReturnType>>::value
+                      && !std::is_const<remove_reference_t<ReturnType>>::value,
+                  int>
+      = 0>
   static bool set_raw_ptr(void* container, std::size_t index, void* value)
   {
     // base_class::get_value(get_container(container), index) = static_cast<value_t>(value);
     return true;
   }
 
-  template <typename..., typename C = ConstType,
-            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-            enable_if_t<!std::is_const<C>::value && std::is_array<remove_reference_t<ReturnType>>::value
-                            && !std::is_const<remove_reference_t<ReturnType>>::value,
-                        int>
-            = 0>
+  template <
+      typename..., typename C = ConstType,
+      typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+      enable_if_t<!std::is_const<C>::value && std::is_array<remove_reference_t<ReturnType>>::value
+                      && !std::is_const<remove_reference_t<ReturnType>>::value,
+                  int>
+      = 0>
   static bool set_value(void* container, std::size_t index, argument& value)
   {
     if (value.get_type() == ::rttr::type::get<value_t>()) {
-      copy_array(value.get_value<value_t>(), base_class::get_value(get_container(container), index));
+      copy_array(value.get_value<value_t>(),
+                 base_class::get_value(get_container(container), index));
       return true;
     } else {
       return false;
     }
   }
 
-  template <typename..., typename C = ConstType,
-            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-            enable_if_t<std::is_const<C>::value || std::is_const<remove_reference_t<ReturnType>>::value, int> = 0>
+  template <
+      typename..., typename C = ConstType,
+      typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+      enable_if_t<std::is_const<C>::value || std::is_const<remove_reference_t<ReturnType>>::value,
+                  int>
+      = 0>
   static bool set_value(void* container, std::size_t index, argument& value)
   {
     base_class::get_value(get_container(container), index);
@@ -242,19 +278,23 @@ struct sequential_container_mapper_wrapper : iterator_wrapper_base<Tp>
 
   /////////////////////////////////////////////////////////////////////////
 
-  template <
-      typename..., typename C = ConstType, typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-      enable_if_t<std::is_reference<ReturnType>::value && !std::is_array<remove_reference_t<ReturnType>>::value, int>
-      = 0>
+  template <typename..., typename C = ConstType,
+            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+            enable_if_t<std::is_reference<ReturnType>::value
+                            && !std::is_array<remove_reference_t<ReturnType>>::value,
+                        int>
+            = 0>
   static variant get_value(void* container, std::size_t index)
   {
     return variant(std::ref(base_class::get_value(get_container(container), index)));
   }
 
-  template <
-      typename..., typename C = ConstType, typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
-      enable_if_t<std::is_reference<ReturnType>::value && std::is_array<remove_reference_t<ReturnType>>::value, int>
-      = 0>
+  template <typename..., typename C = ConstType,
+            typename ReturnType = decltype(base_class::get_value(std::declval<C&>(), 0)),
+            enable_if_t<std::is_reference<ReturnType>::value
+                            && std::is_array<remove_reference_t<ReturnType>>::value,
+                        int>
+            = 0>
   static variant get_value(void* container, std::size_t index)
   {
     return variant(std::ref(base_class::get_value(get_container(container), index)));
@@ -313,7 +353,10 @@ struct sequential_container_base_dynamic
 
   static itr_t erase(container_t& container, const itr_t& itr) { return container.erase(itr); }
 
-  static itr_t erase(container_t& container, const const_itr_t& itr) { return container.erase(itr); }
+  static itr_t erase(container_t& container, const const_itr_t& itr)
+  {
+    return container.erase(itr);
+  }
 
   static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos)
   {
@@ -336,7 +379,10 @@ struct sequential_container_base_dynamic_direct_access : sequential_container_ba
 
   static value_t& get_value(container_t& container, std::size_t index) { return container[index]; }
 
-  static const value_t& get_value(const container_t& container, std::size_t index) { return container[index]; }
+  static const value_t& get_value(const container_t& container, std::size_t index)
+  {
+    return container[index];
+  }
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -404,7 +450,10 @@ struct sequential_container_base_static
 
   static itr_t erase(container_t& container, const const_itr_t& itr) { return end(container); }
 
-  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos) { return end(container); }
+  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos)
+  {
+    return end(container);
+  }
 
   static itr_t insert(container_t& container, const value_t& value, const const_itr_t& itr_pos)
   {
@@ -413,7 +462,10 @@ struct sequential_container_base_static
 
   static value_t& get_value(container_t& container, std::size_t index) { return container[index]; }
 
-  static const value_t& get_value(const container_t& container, std::size_t index) { return container[index]; }
+  static const value_t& get_value(const container_t& container, std::size_t index)
+  {
+    return container[index];
+  }
 };
 
 }  // end namespace detail
@@ -459,11 +511,17 @@ struct sequential_container_mapper<T[N]>
 
   static itr_t erase(container_t& container, const itr_t& itr) { return end(container); }
 
-  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos) { return end(container); }
+  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos)
+  {
+    return end(container);
+  }
 
   static value_t& get_value(container_t& container, std::size_t index) { return container[index]; }
 
-  static const value_t& get_value(const container_t& container, std::size_t index) { return container[index]; }
+  static const value_t& get_value(const container_t& container, std::size_t index)
+  {
+    return container[index];
+  }
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +564,10 @@ struct sequential_container_mapper<std::initializer_list<T>>
 
   static itr_t erase(container_t& container, const itr_t& itr) { return end(container); }
 
-  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos) { return end(container); }
+  static itr_t insert(container_t& container, const value_t& value, const itr_t& itr_pos)
+  {
+    return end(container);
+  }
 
   static const value_t& get_value(container_t& container, std::size_t index)
   {
@@ -524,7 +585,8 @@ struct sequential_container_mapper<std::initializer_list<T>>
 };
 
 //////////////////////////////////////////////////////////////////////////////////////
-// specialization for std::vector<bool>, because vec[index] returns a `std::vector<bool>::reference` not a `bool&`
+// specialization for std::vector<bool>, because vec[index] returns a `std::vector<bool>::reference`
+// not a `bool&`
 
 template <>
 struct sequential_container_mapper<std::vector<bool>>
@@ -570,8 +632,9 @@ struct sequential_container_mapper<std::vector<bool>>
 
   static itr_t erase(container_t& container, const const_itr_t& itr)
   {
-// to prevent following gcc bug: 'no matching function for call to `std::vector<bool>::erase(const const_itr_t&) return
-// container.erase(itr);` vec.erase(vec.cbegin()); fails for unkown reason with this old version
+// to prevent following gcc bug: 'no matching function for call to `std::vector<bool>::erase(const
+// const_itr_t&) return container.erase(itr);` vec.erase(vec.cbegin()); fails for unkown reason with
+// this old version
 #if (RTTR_COMPILER == RTTR_COMPILER_GNUC && RTTR_COMP_VER < 490)
     auto itr_non_const = container.begin();
     std::advance(itr_non_const, std::distance<const_itr_t>(itr_non_const, itr));
@@ -588,8 +651,9 @@ struct sequential_container_mapper<std::vector<bool>>
 
   static itr_t insert(container_t& container, const value_t& value, const const_itr_t& itr_pos)
   {
-// to prevent following gcc bug: 'no matching function for call to `std::vector<bool>::insert(const const_itr_t&, bool)
-// return container.insert(itr, bool);` vec.erase(vec.cbegin()); fails for unkown reason with this old version
+// to prevent following gcc bug: 'no matching function for call to `std::vector<bool>::insert(const
+// const_itr_t&, bool) return container.insert(itr, bool);` vec.erase(vec.cbegin()); fails for
+// unkown reason with this old version
 #if (RTTR_COMPILER == RTTR_COMPILER_GNUC && RTTR_COMP_VER < 490)
     auto itr_non_const = container.begin();
     std::advance(itr_non_const, std::distance<const_itr_t>(itr_non_const, itr_pos));
@@ -599,9 +663,13 @@ struct sequential_container_mapper<std::vector<bool>>
 #endif
   }
 
-  static std::vector<bool>::reference get_value(container_t& container, std::size_t index) { return container[index]; }
+  static std::vector<bool>::reference get_value(container_t& container, std::size_t index)
+  {
+    return container[index];
+  }
 
-  static std::vector<bool>::const_reference get_value(const container_t& container, std::size_t index)
+  static std::vector<bool>::const_reference get_value(const container_t& container,
+                                                      std::size_t index)
   {
     return container[index];
   }
@@ -615,7 +683,8 @@ struct sequential_container_mapper<std::vector<T>>
 {
 };
 template <typename T>
-struct sequential_container_mapper<std::list<T>> : detail::sequential_container_base_dynamic_itr_access<std::list<T>>
+struct sequential_container_mapper<std::list<T>>
+    : detail::sequential_container_base_dynamic_itr_access<std::list<T>>
 {
 };
 template <typename T>
@@ -625,7 +694,8 @@ struct sequential_container_mapper<std::deque<T>>
 };
 
 template <typename T, std::size_t N>
-struct sequential_container_mapper<std::array<T, N>> : detail::sequential_container_base_static<std::array<T, N>>
+struct sequential_container_mapper<std::array<T, N>>
+    : detail::sequential_container_base_static<std::array<T, N>>
 {
 };
 
@@ -641,7 +711,10 @@ struct sequential_container_empty
 
   static void destroy(iterator_data& itr) {}
 
-  static bool equal(const iterator_data& lhs_itr, const iterator_data& rhs_itr) RTTR_NOEXCEPT { return true; }
+  static bool equal(const iterator_data& lhs_itr, const iterator_data& rhs_itr) RTTR_NOEXCEPT
+  {
+    return true;
+  }
 
   static variant get_data(const iterator_data& itr) { return variant(); }
 
@@ -663,7 +736,9 @@ struct sequential_container_empty
 
   static void clear(void* container) {}
 
-  static void insert(void* container, argument& value, const iterator_data& itr, iterator_data& pos) {}
+  static void insert(void* container, argument& value, const iterator_data& itr, iterator_data& pos)
+  {
+  }
 
   static bool set_value(void* container, std::size_t index, argument& value) { return false; }
 

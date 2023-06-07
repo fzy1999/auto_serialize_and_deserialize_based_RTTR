@@ -32,7 +32,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////
 // pointer to member - read write
 
+#include <memory>
 #include <optional>
+#include "myrttr/type.h"
 
 template <typename T>
 struct is_optional
@@ -100,18 +102,31 @@ class property_wrapper<member_object_ptr, Declaring_Typ, A(C::*), void, Acc_Leve
     return metadata_handler<Metadata_Count>::get_metadata(key);
   }
 
+  template <typename T>
+  struct remove_shared
+  {
+    using type = T;
+  };
+
+  template <typename T>
+  struct remove_shared<std::shared_ptr<T>>
+  {
+    using type = T*;
+  };
+
   bool set_value(instance& object, argument& arg) const
   {
     C* ptr = object.try_convert<C>();
     bool is = false;
+    // auto ttt = rttr::type::get<A>();
     if (is_optional<A>::value) {
       using striped_type = optional_value_type<A>::type;
       is = arg.is_type<striped_type>();
     }
+    // auto is_s = arg.is_type<typename remove_shared<A>::type>();
     if (ptr && (arg.is_type<A>() || is))
       return property_accessor<A>::set_value((ptr->*m_acc), arg.get_value<A>());
-    else
-      return false;
+    return false;
   }
 
   bool set_value_raw_ptr(instance& object, void* arg) const

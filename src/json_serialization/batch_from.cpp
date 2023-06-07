@@ -1,8 +1,11 @@
 #include "batch_from.h"
 
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 
@@ -60,6 +63,92 @@ variant FromTask::extract_basic_types(Value& json_value)
   } while (0)
 ///////////////////////
 
+// only push to queue for now
+template <typename T>
+static void create_push_task(const string& propname, Value& json_value, const FTASK_PTR& parent,
+                             FTaskQue& tasks)
+{
+  auto prop_task = std::make_shared<T>(propname, parent);
+  prop_task->parse_id_type(json_value);
+  tasks.push(prop_task);
+}
+
+// bug: not supporting mutiple layer with pointer
+void FromTask::create_sequential_task(const string& propname, rttr::variant& var, Value& json_value,
+                                      FTaskQue& tasks)
+{
+  auto view = var.create_sequential_view();
+  const type array_value_type = view.get_rank_type(1);
+  if (array_value_type.is_array()) {
+    view.set_size(json_value.Size());
+    for (SizeType i = 0; i < json_value.Size(); ++i) {
+      auto& json_index_value = json_value[i];
+      auto sub_array = view.get_value(i);
+      create_sequential_task(propname, sub_array, json_index_value, tasks);
+    }
+  } else if (get_wrapped(array_value_type).is_pointer()) {
+    auto prop_task = std::make_shared<FmSequetialTask>(propname, shared_from_this());
+    prop_task->parse_id_type(json_value);
+    prop_task->_pvar = std::make_shared<variant>(std::move(var));
+    tasks.push(prop_task);
+  } else {
+    view.set_size(json_value.Size());
+    for (SizeType i = 0; i < json_value.Size(); ++i) {
+      auto& json_index_value = json_value[i];
+      if (json_index_value.IsObject()) {
+        auto wrapped_value = view.get_value(i).extract_wrapped_value();
+        prealloc(wrapped_value, json_index_value, tasks);
+        assert(view.set_value(i, wrapped_value));
+      } else {
+        variant extracted_value = extract_basic_types(json_index_value);
+        assert(view.set_value(i, extracted_value));
+      }
+    }
+  }
+}
+
+// cautions: support only <string, other>
+void FromTask::create_associative_task(const string& propname, rttr::variant& var,
+                                       Value& json_value, FTaskQue& tasks)
+{
+  auto view = var.create_associative_view();
+  if (get_wrapped(view.get_value_type()).is_pointer()) {
+    auto prop_task = std::make_shared<FmAssociativeTask>(propname, shared_from_this());
+    prop_task->parse_id_type(json_value);
+    prop_task->_pvar = std::make_shared<variant>(std::move(var));
+    tasks.push(prop_task);
+    return;
+  }
+  for (SizeType i = 0; i < json_value.Size(); ++i) {
+    auto& json_index_value = json_value[i];
+    if (json_index_value.IsObject())  // a key-value associative view
+    {
+      Value::MemberIterator key_itr = json_index_value.FindMember("key");
+      Value::MemberIterator value_itr = json_index_value.FindMember("value");
+      if (key_itr != json_index_value.MemberEnd() && value_itr != json_index_value.MemberEnd()) {
+        auto key_jval = extract_basic_types(key_itr->value);
+        auto value_jval = extract_basic_types(value_itr->value);
+        bool could_convert = value_jval.convert(view.get_value_type());
+        could_convert &= key_jval.convert(view.get_key_type());
+        // TODO(): supporting object key type
+        if (!could_convert && value_itr->value.IsObject()) {
+          // TODO(): potentail bug <.., object> , object contain pointer
+          prealloc(value_jval, value_itr->value, tasks);
+        }
+        if (key_jval && value_jval) {
+          view.insert(key_jval, value_jval);
+        }
+      }
+    } else  // a key-only associative view
+    {
+      variant extracted_value = extract_basic_types(json_index_value);
+      if (extracted_value && extracted_value.convert(view.get_key_type()))
+        view.insert(extracted_value);
+    }
+  }
+}
+
+// reflecting class and unfolding json
 void FromTask::prealloc(const instance& obj2, Value& json_object, FTaskQue& tasks)
 {
   instance obj = get_wrapped(obj2);
@@ -73,29 +162,24 @@ void FromTask::prealloc(const instance& obj2, Value& json_object, FTaskQue& task
     auto tname = prop.get_type().get_name().to_string();  // debug
     const type value_t = prop.get_type();
     auto& json_value = ret->value;
+    auto prop_name = prop.get_name().to_string();
     switch (json_value.GetType()) {
       case kArrayType: {
         variant var = prop.get_value(obj);
         // TODO(): add muti thread
         if (value_t.is_sequential_container()) {
-          CREATE_PUSH_TASK(FmSequetialTask);
+          // sequential
+          create_sequential_task(prop_name, var, json_value, tasks);
         } else {
-          // TODO():
-          // auto associative_view = var.create_associative_view();
-          CREATE_PUSH_TASK(FmAssociativeTask);
+          create_associative_task(prop_name, var, json_value, tasks);
         }
+        prop.set_value(obj, var);
         break;
       }
       case kObjectType: {
         variant var = prop.get_value(obj);
         if (get_wrapped(var.get_type()).is_pointer()) {
-          CREATE_PUSH_TASK(FmObjectTask);
-          // auto prop_task = std ::make_shared<FmObjectTask>(prop.get_name().to_string(), obj);
-          // prop_task->_pvar = std ::make_shared<variant>(std ::move(var));
-          // // json_value.Swap(prop_task->_json_val);
-          // prop_task->_json_val = json_value.Move();
-          // prop_task->parse_id_type();
-          // tasks.push(prop_task);
+          create_push_task<FmObjectTask>(prop_name, json_value, shared_from_this(), tasks);
         } else {
           prealloc(var, json_value, tasks);
           prop.set_value(obj, var);
@@ -135,24 +219,66 @@ void FmObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string& pr
   pparent->set_value(_pvar, prop_name);
 }
 
+void FmSequetialTask::assemble_to_parent()
+{
+  _parent->set_value(_pvar, _prop_name);
+}
+
+// void FmSequetialObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string&
+// prop_name)
+// {
+//   // TODO(): 这个可能是oject任务调用, 所以不能使用set_i设置
+//   // 不用重载了
+// }
+
+void FmSequetialObjectTask::assemble_to_parent()
+{
+  _parent->set_value(_pvar, _index);
+}
+
+void FmAssociativeObjectTask::assemble_to_parent()
+{
+  _parent->set_kv(_pvar, _key);
+}
+
+void FmAssociativeTask::assemble_to_parent()
+{
+  _parent->set_value(_pvar, _prop_name);
+}
+
 // check if already restored
 bool FromTask::already_restore_object(FTaskQue& tasks, const string& cid)
 {
-  // TODO()
   if (tasks.contains(cid)) {
-    // _pvar = tasks.get_task(cid)->_pvar;
     _ptask = tasks.get_task(cid);
     return true;
   }
   return false;
 }
 
+bool FmSequetialTask::set_value(const shared_ptr<variant>& pvar, int index)
+{
+  auto ok = _view.set_value(index, *pvar);
+  --_need;
+  if (_need == 0) {
+    assemble_to_parent();
+  }
+  return ok;
+}
+
+bool FmSequetialTask::set_value_raw_ptr(void* pvar, int index)
+{
+  // dont need to implemented!!
+  assert(false);
+}
+
 bool FmRootTaks::set_value(const shared_ptr<variant>& pvar, const string& prop_name)
 {
   auto prop = get_wrapped(_inst).get_type().get_property(prop_name);
   auto isv = pvar->get_type();
-  // TODO(): is copy?? lower class`s restore can actually take effect?
-  auto ok = prop.set_value(_inst, pvar->extract_wrapped_value());
+  auto ptype = prop.get_type();
+  auto exvar = get_extracted(pvar, ptype);
+  auto ok = prop.set_value(_inst, exvar);
   return ok;
 }
 
@@ -160,8 +286,9 @@ bool FmObjectTask::set_value(const shared_ptr<variant>& pvar, const string& prop
 {
   instance inst(*_pvar);
   auto prop = get_wrapped(inst).get_type().get_property(prop_name);
-  auto isv = pvar->get_type();
-  auto ok = prop.set_value(inst, pvar->extract_wrapped_value());
+  auto ptype = prop.get_type();
+  auto exvar = get_extracted(pvar, ptype);
+  auto ok = prop.set_value(inst, exvar);
   return ok;
 }
 
@@ -174,17 +301,37 @@ bool FmObjectTask::set_value_raw_ptr(void* pvar, const string& prop_name)
   return ok;
 }
 
+bool FmAssociativeTask::set_kv(const shared_ptr<variant>& pvar, const string& key)
+{
+  auto vtype = _view.get_value_type();
+  auto exvar = get_extracted(pvar, vtype);
+  auto [_, ok] = _view.insert(key, exvar);
+  --_need;
+  if (_need == 0) {
+    assemble_to_parent();
+  }
+  return ok;
+}
+
+bool FmAssociativeTask::set_kv_raw_ptr(void* pvar, const string& key)
+{
+  // dont need to implemented!!
+  assert(false);
+}
+
 void TaskResumer::alloc_all(const instance& inst, const string& cid)
 {
   auto root = std::make_shared<FmRootTaks>(inst);
   root->_raw_type = get_wrapped(inst.get_derived_type()).get_raw_type().get_name().to_string();
   root->_cid = cid;
   _tasks.push(root);
-
+  int count = 0;
   while (!_tasks.empty()) {
+    ++count;
     auto task = _tasks.pop();
     task->collect(_tasks);
   }
+  std::cout << "restored about " << count << " time instance\n" << std::flush;
 }
 
 void FromRedis::operator()(const instance& inst, const string& cid)
@@ -223,57 +370,123 @@ void FmObjectTask::collect(FTaskQue& tasks)
     _ptask->assemble_to_parent(_parent, _prop_name);
   }
 }
-
-void FmRootTaks::parse_id_type()
+// TODO(): duplicate code? any other solution?
+void FmSequetialObjectTask::collect(FTaskQue& tasks)
 {
-  auto iter = _json_val.MemberBegin();
+  if (!already_restore_object(tasks, _cid)) {
+    tasks.push_dict(shared_from_this(), _cid);
+    Document json_object;
+    if (json_object.Parse(_json.c_str()).HasParseError()) {
+      std::cerr << "error in document.Parse\n";
+    }
+    auto var = type::get_by_name(_raw_type).create();
+    _pvar = std::make_shared<variant>(std::move(var));
+    prealloc(*_pvar, json_object, tasks);
+  } else {
+    // bug: not support root
+    _pvar = _ptask->_pvar;
+  }
+  // nullptr? or root?
+  assert(_pvar);
+  assemble_to_parent();
+}
+
+void FmSequetialTask::collect(FTaskQue& tasks)
+{
+  // TODO(): 先请求, 重复请求了
+  request_json();
+  _view = _pvar->create_sequential_view();
+  _view.set_size(_jsons.size());
+  _need = _jsons.size();
+  size_t i = 0;
+  for (const auto& json : _jsons) {
+    assert(json != std::nullopt);
+    auto prop_task = std::make_shared<FmSequetialObjectTask>(i, shared_from_this());
+    prop_task->_cid = _cids[i];
+    prop_task->_raw_type = _types[i];
+    prop_task->_json = *json;
+    ++i;
+    tasks.push(prop_task);
+  }
+  // assemble_to_parent();
+}
+
+void FmAssociativeTask::collect(FTaskQue& tasks)
+{
+  request_json();
+  _view = _pvar->create_associative_view();
+  _need = _jsons.size();
+  size_t i = 0;
+  for (const auto& json : _jsons) {
+    assert(json != std::nullopt);
+    auto prop_task = std::make_shared<FmAssociativeObjectTask>(_keys[i], shared_from_this());
+    prop_task->_cid = _cids[i];
+    prop_task->_raw_type = _types[i];
+    prop_task->_json = *json;
+    ++i;
+    tasks.push(prop_task);
+  }
+}
+
+// TODO(): duplicate code? any other solution?
+void FmAssociativeObjectTask::collect(FTaskQue& tasks)
+{
+  if (!already_restore_object(tasks, _cid)) {
+    tasks.push_dict(shared_from_this(), _cid);
+    Document json_object;
+    if (json_object.Parse(_json.c_str()).HasParseError()) {
+      std::cerr << "error in document.Parse\n";
+    }
+    auto var = type::get_by_name(_raw_type).create();
+    _pvar = std::make_shared<variant>(std::move(var));
+    prealloc(*_pvar, json_object, tasks);
+  } else {
+    // bug: not support root
+    _pvar = _ptask->_pvar;
+  }
+  // nullptr? or root?
+  assert(_pvar);
+  assemble_to_parent();
+}
+
+void FmRootTaks::parse_id_type(Value& json_val)
+{
+  auto iter = json_val.MemberBegin();
   _raw_type = iter->value.GetString();
   _cid = iter->name.GetString();
 }
 
 // set _cid & _raw_type
-void FmObjectTask::parse_id_type()
+void FmObjectTask::parse_id_type(Value& json_val)
 {
-  auto iter = _json_val.MemberBegin();
+  auto iter = json_val.MemberBegin();
   _raw_type = iter->value.GetString();
   _cid = iter->name.GetString();
 }
 
-void FmSequetialTask::collect(FTaskQue& tasks)
-{
-  // TODO()
-}
-
-void FmSequetialTask::parse_id_type()
+void FmSequetialTask::parse_id_type(Value& json_val)
 {
   // TODO():
-  // auto iter = _json_val.Begin();
-  // for (; iter != _json_val.End(); iter++) {
-  //   _cids.emplace_back(iter->MemberBegin()->name.GetString());
-  //   _types.emplace_back(iter->MemberBegin()->value.GetString());
-  // }
+  auto iter = json_val.Begin();
+  for (; iter != json_val.End(); iter++) {
+    _cids.emplace_back(iter->MemberBegin()->name.GetString());
+    _types.emplace_back(iter->MemberBegin()->value.GetString());
+  }
 }
 
-void FmAssociativeTask::request_json()
+void FmAssociativeTask::parse_id_type(Value& json_val)
 {
-  // TODO()
-}
-
-void FmAssociativeTask::collect(FTaskQue& tasks)
-{
-  // TODO()
-}
-
-void FmAssociativeTask::parse_id_type()
-{
-  auto iter = _json_val.Begin();
-  for (; iter != _json_val.End(); iter++) {
+  auto iter = json_val.Begin();
+  for (; iter != json_val.End(); iter++) {
+    auto key_member = iter->FindMember("key");
+    _keys.emplace_back(key_member->value.GetString());
     auto value_member = iter->FindMember("value");
     auto id_member = value_member->value.MemberBegin();
     _cids.emplace_back(id_member->name.GetString());
     _types.emplace_back(id_member->value.GetString());
   }
 }
+
 void FmRootTaks::request_json()
 {
   auto aux = RedisAux::GetRedisAux();
@@ -282,13 +495,19 @@ void FmRootTaks::request_json()
 void FmSequetialTask::request_json()
 {
   auto aux = RedisAux::GetRedisAux();
-  _jsons = aux->hget_piped(_raw_type, _cids);
+  _jsons = aux->hget_piped(_types, _cids);
 }
 
 void FmObjectTask::request_json()
 {
   auto aux = RedisAux::GetRedisAux();
   _json = aux->hget(_raw_type, _cid);
+}
+
+void FmAssociativeTask::request_json()
+{
+  auto aux = RedisAux::GetRedisAux();
+  _jsons = aux->hget_piped(_types, _cids);
 }
 
 }  // namespace c2redis

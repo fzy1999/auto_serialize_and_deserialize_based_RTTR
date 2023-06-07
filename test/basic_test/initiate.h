@@ -30,13 +30,13 @@ RTTR_REFLECT(WithNonPublic)
 class SecondClass
 {
  public:
-  BottomClass* bottom;
+  BottomClass* bottom = nullptr;
   string name = "Second";
   int32_t y = 88;
   std::unordered_map<string, BottomClass*> bottom_map;
   std::vector<std::shared_ptr<Base>> bases;
-  std::optional<BottomClass*> opt_bot;
-  std::optional<int> opt_int;
+  std::shared_ptr<BottomClass> opt_bot = nullptr;
+  std::optional<int> opt_int = std::nullopt;
   BottomClass bot_inst;
   // RTTR_ENABLE()
   RTTR_REGISTRATION_FRIEND

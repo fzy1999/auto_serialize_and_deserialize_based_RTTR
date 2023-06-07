@@ -298,6 +298,7 @@ int main()
 {
   TopClass top(99);
   SecondClass second;
+  SecondClass secnull;
   BottomClass bottom;
   Base base;
   top.top.emplace_back();
@@ -308,10 +309,10 @@ int main()
   second.bottom_map["btm1"] = &bottom;
   top.set_second(&second);
   top.secplist.push_back(&second);
-  top.secplist.push_back(&second);
+  top.secplist.push_back(&secnull);
   second.bases.push_back(std::make_shared<Base>());
   second.bases.push_back(std::make_shared<BottomClass>());
-  second.opt_bot = &bottom;
+  second.opt_bot = std::make_shared<BottomClass>();
   second.opt_int = 996;
   second.bot_inst.name = "ccchanged";
   second.bot_inst.second = nullptr;

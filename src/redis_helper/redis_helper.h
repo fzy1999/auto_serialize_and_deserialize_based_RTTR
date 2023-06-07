@@ -13,9 +13,11 @@ using std::string;
 const string REDIS_ADDRESS = "tcp://127.0.0.1:6380";  // aborted
 const int PIPE_MAX = 1000;
 
-class RedisAux {
+class RedisAux
+{
  public:
-  static std::shared_ptr<RedisAux> GetRedisAux(bool with_pipe = true, int db = 0) {
+  static std::shared_ptr<RedisAux> GetRedisAux(bool with_pipe = true, int db = 0)
+  {
     if (_redis_aux == nullptr) {
       _redis_aux = std::make_shared<RedisAux>(with_pipe, db);
     }
@@ -29,10 +31,14 @@ class RedisAux {
   void hset_piped(const string& key, const string& field, const string& value);
   void exec_pipe() { _pipe->exec(); }
   std::vector<OptionalString> hget_piped(const string& key, const std::vector<string>& field);
+  void hget_piped(const string& key, const string& field, std::vector<OptionalString>& results);
+  std::vector<OptionalString> hget_piped(const std::vector<string>& keys,
+                                         const std::vector<string>& fields);
   // ID_TYPE get_increased_class_key(const string& classname, const string& session);
   RedisAux() = default;
 
-  explicit RedisAux(bool with_pipe = true, int db = 0) {
+  explicit RedisAux(bool with_pipe = true, int db = 0)
+  {
     ConnectionOptions connection_options;
     connection_options.host = "127.0.0.1";
     connection_options.port = 6380;
@@ -46,5 +52,6 @@ class RedisAux {
   static std::shared_ptr<RedisAux> _redis_aux;
   std::shared_ptr<Pipeline> _pipe = nullptr;
   std::shared_ptr<Redis> _redis = nullptr;
+  // TODO(): 加锁, 避免交叉读写
   int pipe_num = 0;
 };

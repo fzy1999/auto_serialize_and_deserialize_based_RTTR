@@ -16,3 +16,4 @@
 1. 自动注册, 不需要插入代码
 2. 支持模板自动注册
 3. optional string array
+4. bug in batch from: 不支持多层数组中包含指针的cid
