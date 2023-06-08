@@ -15,6 +15,7 @@ RTTR_REGISTRATION
 
       .property("secplist", &TopClass::secplist)
       .property("second", &TopClass::second)
+      .property("tops", &TopClass::tops)
       .property("top", &TopClass::top)
       .property("tplt", &TopClass::tplt)
       .property("name", &TopClass::name)
@@ -38,6 +39,7 @@ RTTR_REGISTRATION
       .constructor<>()
 
       .property("x", &TopClass::Top::x)
+      .property("second", &TopClass::Top::top_sec)
 
       ;
   rttr::registration::class_<BottomClass>("BottomClass")

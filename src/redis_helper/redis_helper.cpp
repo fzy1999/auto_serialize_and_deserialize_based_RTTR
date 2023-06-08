@@ -62,7 +62,11 @@ void RedisAux::hget_piped(const string& key, const string& field,
     }
   }
   pipe_num++;
-  _pipe->hget(key, field);
+  if (key.empty() || field.empty()) {
+    _pipe->hget(NULL_KEY, NULL_KEY);
+  } else {
+    _pipe->hget(key, field);
+  }
 }
 
 std::vector<OptionalString> RedisAux::hget_piped(const std::vector<string>& keys,
@@ -77,7 +81,7 @@ std::vector<OptionalString> RedisAux::hget_piped(const std::vector<string>& keys
   }
   auto replies = _pipe->exec();
   for (int i = 0; i < replies.size(); ++i) {
-    vals.emplace_back(replies.get<string>(i));
+    vals.emplace_back(replies.get<OptionalString>(i));
   }
   return std::move(vals);
 }

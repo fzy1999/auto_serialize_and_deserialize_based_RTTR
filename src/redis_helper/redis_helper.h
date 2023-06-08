@@ -12,7 +12,7 @@ using namespace sw::redis;
 using std::string;
 const string REDIS_ADDRESS = "tcp://127.0.0.1:6380";  // aborted
 const int PIPE_MAX = 1000;
-
+const string NULL_KEY = "null";
 class RedisAux
 {
  public:
@@ -20,11 +20,14 @@ class RedisAux
   {
     if (_redis_aux == nullptr) {
       _redis_aux = std::make_shared<RedisAux>(with_pipe, db);
+      init_null_key();
     }
+
     return _redis_aux;
   };
 
   // TODO() : fuilure and competition
+  static void init_null_key() { _redis_aux->hset(NULL_KEY, NULL_KEY, ""); }
   string get(const string& key) { return _redis->get(key).value(); }
   bool hset(const string& key, const string& field, const string& value);
   string hget(const string& key, const string& field) { return _redis->hget(key, field).value(); }

@@ -56,16 +56,20 @@ class TopClass
  public:
   TopClass() = default;
   TopClass(int _x) : x(_x){};
+  RTTR_REFLECT(WithNonPublic)
   class Top
   {
     RTTR_REGISTRATION_FRIEND
+   public:
     int x = 998;
+    SecondClass* top_sec = nullptr;
   };
   void set_second(SecondClass* _second) { second = _second; }
   std::vector<SecondClass*> secplist;
-  SecondClass* second;
-  std::vector<Top> top;
+  SecondClass* second = nullptr;
+  std::vector<Top> tops;
   TpltClass<int32_t> tplt;
+  Top top;
 
  private:
   string name = "top";

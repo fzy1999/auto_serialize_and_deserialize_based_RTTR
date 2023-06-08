@@ -186,8 +186,9 @@ int test_from_batch(TopClass& top)
   // auto cid = to_redis(top);
   c2redis::FromRedis from_redis;
   TopClass top_new;
-  from_redis(top_new, "0x7fffffffe250");
-  // io::from_key("0x7fffffffe180", new_sec);
+  from_redis(top_new, "0x7fffffffe240");
+
+  // io::from_key("0x7fffffffe240", top_new);
   return 0;
 }
 
@@ -301,7 +302,9 @@ int main()
   SecondClass secnull;
   BottomClass bottom;
   Base base;
-  top.top.emplace_back();
+  top.tops.emplace_back();
+  top.tops[0].top_sec = &second;
+  top.top.top_sec = &second;
   top.tplt = TpltClass<int32_t>{99};
   bottom.name = "changed";
   bottom.bx = 66;
@@ -310,6 +313,7 @@ int main()
   top.set_second(&second);
   top.secplist.push_back(&second);
   top.secplist.push_back(&secnull);
+  top.secplist.push_back(nullptr);
   second.bases.push_back(std::make_shared<Base>());
   second.bases.push_back(std::make_shared<BottomClass>());
   second.opt_bot = std::make_shared<BottomClass>();
