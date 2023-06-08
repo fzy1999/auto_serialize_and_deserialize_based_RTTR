@@ -6,8 +6,10 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "../redis_helper/redis_helper.h"
 #include "c2redis/test/basic_test/initiate.h"
@@ -427,11 +429,13 @@ void FmRootTaks::collect(FTaskQue& tasks)
 {
   tasks.push_dict(shared_from_this(), _cid);
   request_json();
+
   Document json_object;
   if (json_object.Parse(_json.c_str()).HasParseError()) {
     std::cerr << "error in document.Parse\n";
   }
   prealloc(_inst, json_object, tasks);
+  free_all();
 }
 
 // restoring for object. aka pointer
@@ -462,6 +466,7 @@ void FmObjectTask::collect(FTaskQue& tasks)
   if (_need == 0) {
     assemble_to_parent();
   }
+  free_all();
 }
 // TODO(): duplicate code? any other solution?
 void FmSequetialObjectTask::collect(FTaskQue& tasks)
@@ -476,7 +481,6 @@ void FmSequetialObjectTask::collect(FTaskQue& tasks)
       auto var = type::get_by_name(_raw_type).create();
       _pvar = std::make_shared<variant>(std::move(var));
       prealloc(*_pvar, json_object, tasks);
-
     } else {
       // bug: not support root
       _pvar = _ptask->_pvar;
@@ -484,12 +488,12 @@ void FmSequetialObjectTask::collect(FTaskQue& tasks)
   } else {
     prealloc(*_pvar, _json_object, tasks);
   }
-
   // nullptr? or root?
   assert(_pvar);
   if (_need == 0) {
     assemble_to_parent();
   }
+  free_all();
 }
 
 void FmSequetialTask::collect(FTaskQue& tasks)
@@ -505,14 +509,14 @@ void FmSequetialTask::collect(FTaskQue& tasks)
     size_t i = 0;
     for (const auto& json : _jsons) {
       // assert(json != std::nullopt);
-      if (json->empty()) {
+      if (json.empty()) {
         auto ok = set_value(nullptr, i);
         continue;
       }
       auto prop_task = std::make_shared<FmSequetialObjectTask>(i, shared_from_this());
       prop_task->_cid = _cids[i];
       prop_task->_raw_type = _types[i];
-      prop_task->_json = *json;
+      prop_task->_json = json;
       ++i;
       tasks.push(prop_task);
     }
@@ -530,8 +534,7 @@ void FmSequetialTask::collect(FTaskQue& tasks)
       tasks.push(prop_task);
     }
   }
-
-  // assemble_to_parent();
+  free_all();
 }
 
 void FmAssociativeTask::collect(FTaskQue& tasks)
@@ -541,14 +544,14 @@ void FmAssociativeTask::collect(FTaskQue& tasks)
   _need = _jsons.size();
   size_t i = 0;
   for (const auto& json : _jsons) {
-    assert(json != std::nullopt);
     auto prop_task = std::make_shared<FmAssociativeObjectTask>(_keys[i], shared_from_this());
     prop_task->_cid = _cids[i];
     prop_task->_raw_type = _types[i];
-    prop_task->_json = *json;
+    prop_task->_json = json;
     ++i;
     tasks.push(prop_task);
   }
+  free_all();
 }
 
 // TODO(): duplicate code? any other solution?
@@ -570,6 +573,45 @@ void FmAssociativeObjectTask::collect(FTaskQue& tasks)
   // nullptr? or root?
   assert(_pvar);
   assemble_to_parent();
+  free_all();
+}
+
+void FromTask::free_vec(std::vector<string>& vec)
+{
+  if (vec.empty()) {
+    return;
+  }
+  std::vector<string>().swap(vec);
+}
+
+void FromTask::free_str(string& str)
+{
+  if (str.empty()) {
+    return;
+  }
+  string().swap(str);
+}
+
+void FromTask::free_all()
+{
+  free_str(_json);
+  free_str(_raw_type);
+  free_str(_cid);
+  if (!_json_object.IsNull()) {
+    Document().Swap(_json_object);
+  }
+}
+
+void FmSequetialTask::free_all()
+{
+  FromTask::free_all();
+  free_vec(_cids);
+  free_vec(_types);
+  free_vec(_jsons);
+}
+
+void FmAssociativeTask::free_all()
+{
 }
 
 void FmRootTaks::parse_id_type(Value& json_val)
@@ -594,7 +636,7 @@ void FmSequetialTask::parse_id_type(Value& json_val)
   for (; iter != json_val.End(); iter++) {
     if (iter->IsNull()) {
       std::cerr << "parse_id_type failed (empty) in " << _prop_name
-                << "index:" << iter - json_val.Begin() << std::endl;
+                << " index:" << iter - json_val.Begin() << std::endl;
       _cids.emplace_back("");
       _types.emplace_back("");
     } else {

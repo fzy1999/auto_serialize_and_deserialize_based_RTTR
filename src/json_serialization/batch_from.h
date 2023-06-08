@@ -78,6 +78,10 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   virtual bool set_value_raw_ptr(void* pvar, int index) { return false; };
   virtual bool set_kv(const shared_ptr<variant>& pvar, const string& key) { return false; };
   virtual bool set_kv_raw_ptr(void* pvar, const string& key) { return false; };
+  void free_vec(std::vector<string>& vec);
+  void free_str(string& str);
+  virtual void free_all();
+
   variant get_extracted(const shared_ptr<variant>& pvar, const rttr::type& ptype)
   {
     auto vart = pvar->get_type();
@@ -152,7 +156,7 @@ class FmSequetialTask : public FromTask
   FmSequetialTask(string prop_name, FTASK_PTR parent)
       : FromTask(std::move(prop_name), std::move(parent)){};
   vector<string> _cids;
-  vector<std::optional<string>> _jsons;
+  vector<string> _jsons;
   vector<string> _types;
   rttr::variant_sequential_view _view;
   // need how many to be init
@@ -163,6 +167,7 @@ class FmSequetialTask : public FromTask
   void assemble_to_parent() override;
   bool set_value(const shared_ptr<variant>& pvar, int index) override;
   bool set_value_raw_ptr(void* pvar, int index) override;
+  void free_all() override;
 };
 
 // TODO(): support only type like <basic, object>
@@ -172,7 +177,7 @@ class FmAssociativeTask : public FromTask
   FmAssociativeTask(string prop_name, FTASK_PTR parent)
       : FromTask(std::move(prop_name), std::move(parent)){};
   vector<string> _cids;
-  vector<std::optional<string>> _jsons;
+  vector<string> _jsons;
   vector<string> _types;
   vector<string> _keys;
   rttr::variant_associative_view _view;
@@ -184,6 +189,7 @@ class FmAssociativeTask : public FromTask
   void assemble_to_parent() override;
   bool set_kv(const shared_ptr<variant>& pvar, const string& key) override;
   bool set_kv_raw_ptr(void* pvar, const string& key) override;
+  void free_all() override;
 };
 
 struct FTaskQue

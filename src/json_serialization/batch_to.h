@@ -23,11 +23,11 @@ using namespace rapidjson;
 using namespace rttr;
 using rttr::variant;
 
-auto duration = [](auto s, auto e) { return std::chrono::duration_cast<std::chrono::seconds>(e - s).count(); };
 struct Task;
 using TASK_PTR = std::shared_ptr<Task>;
 
-struct Task {
+struct Task
+{
   Task() = default;
   explicit Task(instance& _inst) : inst(_inst){};
   explicit Task(const instance& _inst) : inst(_inst){};
@@ -44,7 +44,8 @@ struct Task {
   bool store();
 };
 
-struct TaskDict {
+struct TaskDict
+{
  private:
   std::unordered_map<void*, TASK_PTR> _dict;
   std::vector<TASK_PTR> _tasks;
@@ -54,7 +55,8 @@ struct TaskDict {
   size_t reader = 0;
   size_t keeper = 0;
   const size_t capacity = 45000000;
-  class GKeyMutex {
+  class GKeyMutex
+  {
     std::mutex _td_mutex;
 
    public:
@@ -66,7 +68,8 @@ struct TaskDict {
   void add_task(void* ptr, TASK_PTR task);
 
  public:
-  TaskDict() {
+  TaskDict()
+  {
     _tasks.reserve(capacity);
     _dict.reserve(capacity);
   }
@@ -85,7 +88,8 @@ struct TaskDict {
   // type get_wrapped(const type& type);
 };
 
-struct StoreQueue {
+struct StoreQueue
+{
   std::queue<std::string_view> store_list;
   const int n_per_run = 100;
 
@@ -93,7 +97,8 @@ struct StoreQueue {
   void execute_all();  // 合并batch和不合并batch
 };
 
-class TaskAllocator {
+class TaskAllocator
+{
  public:
   void allocate_all(rttr::instance& inst, ID_TYPE& cid);
   void serialize_all();  // TODO(): 顺序处理tasks, 这个第二遍已经有所有的key
@@ -104,7 +109,8 @@ class TaskAllocator {
   void serialize_instance(const instance& obj, PrettyWriter<StringBuffer>& writer);
   bool serialize_pointer(const variant& var, PrettyWriter<StringBuffer>& writer);
   bool serialize_atomic(const variant& var, PrettyWriter<StringBuffer>& writer);
-  void serialize_associative_container(const variant_associative_view&, PrettyWriter<StringBuffer>&);
+  void serialize_associative_container(const variant_associative_view&,
+                                       PrettyWriter<StringBuffer>&);
   void serialize_sequential_container(const variant_sequential_view&, PrettyWriter<StringBuffer>&);
   void allocate_associative_container(const variant_associative_view& view);
   void allocate_sequential_container(const variant_sequential_view& view);
@@ -112,7 +118,10 @@ class TaskAllocator {
 
   void create_task(const variant& var);
   bool write_optinal_types_to_json(const variant& var, PrettyWriter<StringBuffer>& writer);
-  bool is_optional(const type& t) { return t.get_name().to_string().find("optional") != std::string::npos; }
+  bool is_optional(const type& t)
+  {
+    return t.get_name().to_string().find("optional") != std::string::npos;
+  }
   const int thread_num = 32;
 
   TaskDict dict;
@@ -123,7 +132,8 @@ class TaskAllocator {
   bool read_finished = false;
 };
 
-class ToRedis {
+class ToRedis
+{
  public:
   ID_TYPE operator()(instance inst);
 

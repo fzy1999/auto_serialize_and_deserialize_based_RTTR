@@ -32,13 +32,12 @@ void RedisAux::hset_piped(const string& key, const string& field, const string& 
   _pipe->hset(key, field, value);
 }
 
-std::vector<OptionalString> RedisAux::hget_piped(const string& key,
-                                                 const std::vector<string>& fields)
+std::vector<string> RedisAux::hget_piped(const string& key, const std::vector<string>& fields)
 {
   auto cur = fields.cbegin();
   auto tail = cur;
   auto cend = fields.cend();
-  std::vector<OptionalString> vals;
+  std::vector<string> vals;
   while (cur != cend) {
     if (cend - cur < PIPE_MAX) {
       tail = cend;
@@ -50,8 +49,7 @@ std::vector<OptionalString> RedisAux::hget_piped(const string& key,
   return std::move(vals);
 }
 
-void RedisAux::hget_piped(const string& key, const string& field,
-                          std::vector<OptionalString>& results)
+void RedisAux::hget_piped(const string& key, const string& field, std::vector<string>& results)
 {
   if (pipe_num == PIPE_MAX) {
     pipe_num = 0;
@@ -69,19 +67,19 @@ void RedisAux::hget_piped(const string& key, const string& field,
   }
 }
 
-std::vector<OptionalString> RedisAux::hget_piped(const std::vector<string>& keys,
-                                                 const std::vector<string>& fields)
+std::vector<string> RedisAux::hget_piped(const std::vector<string>& keys,
+                                         const std::vector<string>& fields)
 {
   auto size = keys.size();
   assert(size == fields.size());
-  std::vector<OptionalString> vals;
+  std::vector<string> vals;
   vals.reserve(size);
   for (int i = 0; i < size; ++i) {
     hget_piped(keys[i], fields[i], vals);
   }
   auto replies = _pipe->exec();
   for (int i = 0; i < replies.size(); ++i) {
-    vals.emplace_back(replies.get<OptionalString>(i));
+    vals.emplace_back(replies.get<string>(i));
   }
   return std::move(vals);
 }

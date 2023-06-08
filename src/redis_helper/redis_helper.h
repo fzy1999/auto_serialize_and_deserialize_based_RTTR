@@ -33,10 +33,10 @@ class RedisAux
   string hget(const string& key, const string& field) { return _redis->hget(key, field).value(); }
   void hset_piped(const string& key, const string& field, const string& value);
   void exec_pipe() { _pipe->exec(); }
-  std::vector<OptionalString> hget_piped(const string& key, const std::vector<string>& field);
-  void hget_piped(const string& key, const string& field, std::vector<OptionalString>& results);
-  std::vector<OptionalString> hget_piped(const std::vector<string>& keys,
-                                         const std::vector<string>& fields);
+  std::vector<string> hget_piped(const string& key, const std::vector<string>& field);
+  void hget_piped(const string& key, const string& field, std::vector<string>& results);
+  std::vector<string> hget_piped(const std::vector<string>& keys,
+                                 const std::vector<string>& fields);
   // ID_TYPE get_increased_class_key(const string& classname, const string& session);
   RedisAux() = default;
 
