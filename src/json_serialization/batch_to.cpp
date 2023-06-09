@@ -15,13 +15,15 @@
 #include "myrttr/instance.h"
 #include "myrttr/string_view.h"
 namespace c2redis {
-ID_TYPE TaskDict::generate_key(void* ptr) {
-  char buffer[8];
+ID_TYPE TaskDict::generate_key(void* ptr)
+{
+  char buffer[16];
   sprintf(buffer, "%p", ptr);
   return std::move(buffer);
 }
 
-void TaskDict::add_task(void* ptr, TASK_PTR task) {
+void TaskDict::add_task(void* ptr, TASK_PTR task)
+{
   assert(task);
   _dict[ptr] = task;
   _tasks.push_back(task);
@@ -32,7 +34,8 @@ void TaskDict::add_task(void* ptr, TASK_PTR task) {
 //   return inst.get_type().get_raw_type().is_wrapper() ? inst.get_wrapped_instance() : inst;
 // }
 
-TASK_PTR TaskDict::get_next() {
+TASK_PTR TaskDict::get_next()
+{
   if (walker == tail) {
     tail = _tasks.size();
     level++;
@@ -42,19 +45,24 @@ TASK_PTR TaskDict::get_next() {
 }
 
 // TODO():
-void TaskDict::serialize_all() {}
+void TaskDict::serialize_all()
+{
+}
 
-TASK_PTR TaskDict::get_next_unstore() {
+TASK_PTR TaskDict::get_next_unstore()
+{
   assert(keeper < reader);
   return _tasks[keeper++];
 }
 
-inline TASK_PTR TaskDict::get_next_unread() {
+inline TASK_PTR TaskDict::get_next_unread()
+{
   assert(reader < walker);
   return _tasks[reader++];
 }
 // check and get
-TASK_PTR TaskDict::add_key(const instance& inst) {
+TASK_PTR TaskDict::add_key(const instance& inst)
+{
   // auto inst = task->inst;
   if (!inst.is_valid()) {
     return nullptr;
@@ -83,7 +91,8 @@ TASK_PTR TaskDict::add_key(const instance& inst) {
   return _dict[key];
 }
 
-TASK_PTR TaskDict::get_key(const instance& inst) {
+TASK_PTR TaskDict::get_key(const instance& inst)
+{
   if (!inst.is_valid()) {
     return nullptr;
   }
@@ -105,7 +114,8 @@ TASK_PTR TaskDict::get_key(const instance& inst) {
 }
 
 // only allocate key and set to map
-void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid) {
+void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid)
+{
   auto start = std::chrono::high_resolution_clock::now();
 
   auto root = dict.add_key(inst);
@@ -122,11 +132,13 @@ void TaskAllocator::allocate_all(rttr::instance& inst, ID_TYPE& cid) {
     total++;
   }
   auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "alloc total:" << total << "const time: " << duration(start, end) << std::endl << std::flush;
+  std::cout << "alloc total:" << total << "const time: " << duration(start, end) << std::endl
+            << std::flush;
   alloc_finished = true;
 }
 
-void TaskAllocator::serialize_all() {
+void TaskAllocator::serialize_all()
+{
   auto start = std::chrono::high_resolution_clock::now();
 
   // ThreadPool pool(thread_num);
@@ -141,7 +153,8 @@ void TaskAllocator::serialize_all() {
     // std::cout << sb.GetString() << std::endl;
     //////////////
     if (task->cname.empty()) {
-      task->cname = get_wrapped(task->inst).get_derived_type().get_raw_type().get_name().to_string();
+      task->cname
+          = get_wrapped(task->inst).get_derived_type().get_raw_type().get_name().to_string();
     }
   };
   int seri_count = 0;
@@ -157,11 +170,13 @@ void TaskAllocator::serialize_all() {
   read_finished = true;
   auto end = std::chrono::high_resolution_clock::now();
 
-  std::cout << "serialization total:" << seri_count << "const time: " << duration(start, end) << std::endl
+  std::cout << "serialization total:" << seri_count << "const time: " << duration(start, end)
+            << std::endl
             << std::flush;
 }
 
-void TaskAllocator::store_all() {
+void TaskAllocator::store_all()
+{
   auto start = std::chrono::high_resolution_clock::now();
 
   auto aux = RedisAux::GetRedisAux();
@@ -178,10 +193,12 @@ void TaskAllocator::store_all() {
   aux->exec_pipe();
 
   auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "stored total:" << store_count << "const time: " << duration(start, end) << std::endl << std::flush;
+  std::cout << "stored total:" << store_count << "const time: " << duration(start, end) << std::endl
+            << std::flush;
 }
 
-void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuffer>& writer) {
+void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuffer>& writer)
+{
   if (!var.is_valid() || var.get_raw_ptr_tmp() == nullptr) {
     writer.Null();
   }
@@ -202,13 +219,15 @@ void TaskAllocator::serialize_variant(const variant& var, PrettyWriter<StringBuf
   }
 }
 
-void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringBuffer>& writer) {
+void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringBuffer>& writer)
+{
   writer.StartObject();
   auto wrapped = get_wrapped(obj);
   auto prop_list = wrapped.get_derived_type().get_properties();
   for (auto prop : prop_list) {
     rttr::variant prop_value = prop.get_value(obj);
-    if (!prop_value) continue;
+    if (!prop_value)
+      continue;
     const auto name = prop.get_name();
     writer.String(name.data(), static_cast<rapidjson::SizeType>(name.length()), false);
     serialize_variant(prop_value, writer);
@@ -216,20 +235,23 @@ void TaskAllocator::serialize_instance(const instance& obj, PrettyWriter<StringB
   writer.EndObject();
 }
 
-bool TaskAllocator::serialize_pointer(const variant& var, PrettyWriter<StringBuffer>& writer) {
+bool TaskAllocator::serialize_pointer(const variant& var, PrettyWriter<StringBuffer>& writer)
+{
   auto task = dict.get_key(var);
   if (!task) {
     writer.Null();
   } else {
     writer.StartObject();
     writer.String(task->cid.data(), static_cast<rapidjson::SizeType>(task->cid.length()), false);
-    writer.String(task->cname.data(), static_cast<rapidjson::SizeType>(task->cname.length()), false);
+    writer.String(task->cname.data(), static_cast<rapidjson::SizeType>(task->cname.length()),
+                  false);
     writer.EndObject();
   }
   return true;
 }
 
-bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuffer>& writer) {
+bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuffer>& writer)
+{
   auto t = var.get_type();
   if (t.is_arithmetic()) {
     if (t == type::get<bool>())
@@ -285,7 +307,8 @@ bool TaskAllocator::serialize_atomic(const variant& var, PrettyWriter<StringBuff
 }
 
 void TaskAllocator::serialize_associative_container(const variant_associative_view& view,
-                                                    PrettyWriter<StringBuffer>& writer) {
+                                                    PrettyWriter<StringBuffer>& writer)
+{
   static const string_view key_name("key");
   static const string_view value_name("value");
   writer.StartArray();
@@ -300,7 +323,8 @@ void TaskAllocator::serialize_associative_container(const variant_associative_vi
       writer.String(key_name.data(), static_cast<rapidjson::SizeType>(key_name.length()), false);
       serialize_variant(item.first, writer);
 
-      writer.String(value_name.data(), static_cast<rapidjson::SizeType>(value_name.length()), false);
+      writer.String(value_name.data(), static_cast<rapidjson::SizeType>(value_name.length()),
+                    false);
       serialize_variant(item.second, writer);
 
       writer.EndObject();
@@ -311,7 +335,8 @@ void TaskAllocator::serialize_associative_container(const variant_associative_vi
 }
 
 void TaskAllocator::serialize_sequential_container(const variant_sequential_view& view,
-                                                   PrettyWriter<StringBuffer>& writer) {
+                                                   PrettyWriter<StringBuffer>& writer)
+{
   writer.StartArray();
   for (const auto& item : view) {
     serialize_variant(item, writer);
@@ -320,7 +345,8 @@ void TaskAllocator::serialize_sequential_container(const variant_sequential_view
 }
 
 // TODO():
-void TaskAllocator::allocate_associative_container(const rttr::variant_associative_view& view) {
+void TaskAllocator::allocate_associative_container(const rttr::variant_associative_view& view)
+{
   if (view.is_key_only_type()) {
     for (const auto& item : view) {
       if (!get_wrapped(item.first.get_type()).is_pointer()) {
@@ -340,7 +366,8 @@ void TaskAllocator::allocate_associative_container(const rttr::variant_associati
   }
 }
 
-void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential_view& view) {
+void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential_view& view)
+{
   auto n = view.get_size();
   for (const auto& item : view) {
     if (item.is_sequential_container()) {
@@ -356,14 +383,16 @@ void TaskAllocator::allocate_sequential_container(const rttr::variant_sequential
   }
 }
 
-void TaskAllocator::allocate_instance(const instance& obj) {
+void TaskAllocator::allocate_instance(const instance& obj)
+{
   auto name = obj.get_type().get_name().to_string();
   auto wrapped = get_wrapped(obj);
   auto prop_list = wrapped.get_derived_type().get_properties();
   auto n = prop_list.size();
   for (auto prop : prop_list) {
     rttr::variant prop_value = prop.get_value(obj);
-    if (!prop_value) continue;
+    if (!prop_value)
+      continue;
     auto wrapped_val = get_wrapped(prop_value);
     auto propname = get_wrapped(wrapped_val.get_type());
 
@@ -398,12 +427,15 @@ void TaskAllocator::allocate_instance(const instance& obj) {
 //   return wrapped_type;
 // }
 
-void TaskAllocator::create_task(const rttr::variant& val) {
+void TaskAllocator::create_task(const rttr::variant& val)
+{
   // caution!!! when pass a item like val in view , extract_wrapped_value is nessary!
   dict.add_key(val);  // dont we need return?
 }
 
-bool TaskAllocator::write_optinal_types_to_json(const variant& var, PrettyWriter<StringBuffer>& writer) {
+bool TaskAllocator::write_optinal_types_to_json(const variant& var,
+                                                PrettyWriter<StringBuffer>& writer)
+{
   if (var.is_type<std::optional<bool>>())
     writer.Bool(var.get_value<bool>());
   else if (var.is_type<std::optional<char>>())
@@ -436,7 +468,8 @@ bool TaskAllocator::write_optinal_types_to_json(const variant& var, PrettyWriter
   return true;
 }
 
-ID_TYPE ToRedis::operator()(instance inst) {
+ID_TYPE ToRedis::operator()(instance inst)
+{
   ID_TYPE cid;
   std::thread alloc_thread(&ToRedis::call_alloc, this, std::ref(inst), std::ref(cid));
   alloc_thread.join();
@@ -447,10 +480,19 @@ ID_TYPE ToRedis::operator()(instance inst) {
   return cid;
 }
 
-inline void ToRedis::call_alloc(rttr::instance& inst, ID_TYPE& cid) { allocator.allocate_all(inst, cid); }
+inline void ToRedis::call_alloc(rttr::instance& inst, ID_TYPE& cid)
+{
+  allocator.allocate_all(inst, cid);
+}
 
-inline void ToRedis::call_serialize_all() { allocator.serialize_all(); }
+inline void ToRedis::call_serialize_all()
+{
+  allocator.serialize_all();
+}
 
-inline void ToRedis::call_store() { allocator.store_all(); }
+inline void ToRedis::call_store()
+{
+  allocator.store_all();
+}
 
 }  // namespace c2redis

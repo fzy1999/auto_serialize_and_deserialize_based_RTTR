@@ -54,6 +54,7 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   // Value _json_val;
   string _cid;
   string _json;
+  // need how many to be init
   size_t _need = 0;
   Document _json_object;
 
@@ -159,7 +160,6 @@ class FmSequetialTask : public FromTask
   vector<string> _jsons;
   vector<string> _types;
   rttr::variant_sequential_view _view;
-  // need how many to be init
 
   void request_json() override;
   void collect(FTaskQue& tasks) override;
