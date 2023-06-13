@@ -54,7 +54,6 @@ void RedisAux::hget_piped(const string& key, const string& field, std::vector<st
   if (pipe_num == PIPE_MAX) {
     pipe_num = 0;
     auto replies = _pipe->exec();
-    // TODO(): make it thread
     for (int i = 0; i < replies.size(); ++i) {
       results.emplace_back(replies.get<string>(i));
     }
@@ -70,6 +69,7 @@ void RedisAux::hget_piped(const string& key, const string& field, std::vector<st
 std::vector<string> RedisAux::hget_piped(const std::vector<string>& keys,
                                          const std::vector<string>& fields)
 {
+  PipeReadLocker _lock(_pipe_read_mutex);
   auto size = keys.size();
   assert(size == fields.size());
   std::vector<string> vals;

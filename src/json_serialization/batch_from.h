@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <string>
@@ -30,8 +31,8 @@ using std::shared_ptr;
 using std::string;
 using std::vector;
 
-struct FTaskQue;
 class FromTask;
+struct FTaskQue;
 using FTASK_PTR = shared_ptr<FromTask>;
 struct Architecture
 {
@@ -56,8 +57,11 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   string _json;
   // need how many to be init
   size_t _need = 0;
+  std::mutex _need_mutex;
   Document _json_object;
+  bool _is_completed = false;
 
+  void sub_need();
   variant extract_basic_types(Value& json_value);
   virtual void request_json(){};
   virtual void collect(FTaskQue& tasks){};
@@ -99,6 +103,7 @@ class FromTask : public std::enable_shared_from_this<FromTask>
     }
     return std::move(exvar);
   }
+  bool ptask_completed(FTaskQue& tasks);
 };
 
 class FmRootTaks : public FromTask
@@ -160,6 +165,7 @@ class FmSequetialTask : public FromTask
   vector<string> _jsons;
   vector<string> _types;
   rttr::variant_sequential_view _view;
+  std::mutex _container_mutex;
 
   void request_json() override;
   void collect(FTaskQue& tasks) override;
@@ -181,6 +187,7 @@ class FmAssociativeTask : public FromTask
   vector<string> _types;
   vector<string> _keys;
   rttr::variant_associative_view _view;
+  std::mutex _container_mutex;
 
   void request_json() override;
   void collect(FTaskQue& tasks) override;
@@ -197,19 +204,38 @@ struct FTaskQue
   using VARIANT_PTR = shared_ptr<variant>;
   std::unordered_map<string, FTASK_PTR> _dict;
   std::queue<FTASK_PTR> _que;
+  std::mutex _que_mutex;
 
-  FTASK_PTR get_task(const string& cid) { return _dict[cid]; }
-  VARIANT_PTR get_variant(const string& cid) { return _dict[cid]->_pvar; }
-  bool contains(const string& cid) const { return _dict.contains(cid); }
+  FTASK_PTR get_task(const string& cid)
+  {
+    std::lock_guard<std::mutex> lock(_que_mutex);
+    return _dict[cid];
+  }
+  // VARIANT_PTR get_variant(const string& cid) { return _dict[cid]->_pvar; }
+  bool contains(const string& cid)
+  {
+    std::lock_guard<std::mutex> lock(_que_mutex);
+    return _dict.contains(cid);
+  }
   void push(const FTASK_PTR& ptr, const string& cid)
   {
+    std::lock_guard<std::mutex> lock(_que_mutex);
     _que.push(ptr);
     _dict[cid] = ptr;
   }
-  void push(const FTASK_PTR& ptr) { _que.push(ptr); }
-  void push_dict(const FTASK_PTR& ptr, const string& cid) { _dict[cid] = ptr; }
+  void push(const FTASK_PTR& ptr)
+  {
+    std::lock_guard<std::mutex> lock(_que_mutex);
+    _que.push(ptr);
+  }
+  void push_dict(const FTASK_PTR& ptr, const string& cid)
+  {
+    std::lock_guard<std::mutex> lock(_que_mutex);
+    _dict[cid] = ptr;
+  }
   FTASK_PTR pop()
   {
+    std::lock_guard<std::mutex> lock(_que_mutex);
     auto ptr = _que.front();
     _que.pop();
     return ptr;
@@ -221,17 +247,22 @@ class TaskResumer
 {
  public:
   void alloc_all(const instance& inst, const string& cid);
-  // void prealloc(const instance &obj2, Value &json_object);
-  // template <typename T>
-  // void collect(const shared_ptr<T> &task){};
-  // template <>
-  // void collect(const shared_ptr<FmObjectTask> &task);
-  // template <>
-  // void collect(const shared_ptr<FmSequetialTask> &task);
+  void add_running_count()
+  {
+    std::lock_guard<std::mutex> lock(_count_mutex);
+    ++_running_count;
+  }
+  void subtract_running_count()
+  {
+    std::lock_guard<std::mutex> lock(_count_mutex);
+    --_running_count;
+  }
 
  private:
   Architecture _archi;
   FTaskQue _tasks;
+  size_t _running_count = 0;
+  std::mutex _count_mutex;
 };
 
 class FromRedis

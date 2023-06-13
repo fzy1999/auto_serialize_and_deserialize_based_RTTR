@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -12,12 +13,14 @@
 #include <vector>
 
 #include "../redis_helper/redis_helper.h"
+#include "ThreadPool/ThreadPool.h"
 #include "c2redis/test/basic_test/initiate.h"
 #include "common.h"
 #include "myrttr/instance.h"
 #include "myrttr/type.h"
 #include "myrttr/variant.h"
 #include "rapidjson/document.h"
+#include <gperftools/profiler.h>
 namespace c2redis {
 bool is_optional(const type& t)
 {
@@ -336,9 +339,10 @@ bool FmSequetialTask::set_value(const shared_ptr<variant>& pvar, int index)
 {
   bool ok = true;
   if (pvar) {
+    std::lock_guard<std::mutex> lock(_container_mutex);
     ok = _view.set_value(index, *pvar);
   }
-  --_need;
+  sub_need();
   if (_need == 0) {
     assemble_to_parent();
   }
@@ -370,7 +374,7 @@ bool FmObjectTask::set_value(const shared_ptr<variant>& pvar, const string& prop
   auto exvar = get_extracted(pvar, ptype);
   exvar.convert(prop.get_type());
   auto ok = prop.set_value(inst, exvar);
-  --_need;
+  sub_need();
   if (_need == 0) {
     assemble_to_parent();
   }
@@ -390,12 +394,17 @@ bool FmAssociativeTask::set_kv(const shared_ptr<variant>& pvar, const string& ke
 {
   auto vtype = _view.get_value_type();
   auto exvar = get_extracted(pvar, vtype);
-  auto [_, ok] = _view.insert(key, exvar);
-  --_need;
+  bool setok = false;
+  {
+    std::lock_guard<std::mutex> lock(_container_mutex);
+    auto [_, ok] = _view.insert(key, exvar);
+    setok = ok;
+  }
+  sub_need();
   if (_need == 0) {
     assemble_to_parent();
   }
-  return ok;
+  return setok;
 }
 
 bool FmAssociativeTask::set_kv_raw_ptr(void* pvar, const string& key)
@@ -410,18 +419,31 @@ void TaskResumer::alloc_all(const instance& inst, const string& cid)
   root->_raw_type = get_wrapped(inst.get_derived_type()).get_raw_type().get_name().to_string();
   root->_cid = cid;
   _tasks.push(root);
-  int count = 0;
-  while (!_tasks.empty()) {
-    ++count;
-    auto task = _tasks.pop();
+  ThreadPool pool(16);
+  auto thread_func = [this](auto task) {
     task->collect(_tasks);
+    subtract_running_count();
+  };
+  int count = 0;
+  while (_running_count > 0 || !_tasks.empty()) {
+    while (!_tasks.empty()) {
+      ++count;
+      auto task = _tasks.pop();
+      // TODO(): this
+      add_running_count();
+      pool.enqueue(thread_func, task);
+      // task->collect(_tasks);
+    }
   }
+
   std::cout << "restored about " << count << " time instance\n" << std::flush;
 }
 
 void FromRedis::operator()(const instance& inst, const string& cid)
 {
+  ProfilerStart("batch_from.prof");
   resumer.alloc_all(inst, cid);
+  ProfilerStop();
 }
 
 // only for root class
@@ -454,8 +476,12 @@ void FmObjectTask::collect(FTaskQue& tasks)
       _pvar = std::make_shared<variant>(std::move(var));
       prealloc(*_pvar, json_object, tasks);
     } else {
-      // for only when this var is root, to set with raw ptr
+      // for only when this task is root, to set with raw ptr
       _ptask->assemble_to_parent(_parent, _prop_name);
+      // for others
+      if (!ptask_completed(tasks)) {
+        return;
+      }
       _pvar = _ptask->_pvar;
     }
   } else {
@@ -483,6 +509,9 @@ void FmSequetialObjectTask::collect(FTaskQue& tasks)
       prealloc(*_pvar, json_object, tasks);
     } else {
       // bug: not support root
+      if (!ptask_completed(tasks)) {
+        return;
+      }
       _pvar = _ptask->_pvar;
     }
   } else {
@@ -568,6 +597,9 @@ void FmAssociativeObjectTask::collect(FTaskQue& tasks)
     prealloc(*_pvar, json_object, tasks);
   } else {
     // bug: not support root
+    if (!ptask_completed(tasks)) {
+      return;
+    }
     _pvar = _ptask->_pvar;
   }
   // nullptr? or root?
@@ -594,6 +626,7 @@ void FromTask::free_str(string& str)
 
 void FromTask::free_all()
 {
+  _is_completed = true;
   free_str(_json);
   free_str(_raw_type);
   free_str(_cid);
@@ -612,6 +645,11 @@ void FmSequetialTask::free_all()
 
 void FmAssociativeTask::free_all()
 {
+  FromTask::free_all();
+  free_vec(_cids);
+  free_vec(_types);
+  free_vec(_jsons);
+  free_vec(_keys);
 }
 
 void FmRootTaks::parse_id_type(Value& json_val)
@@ -631,7 +669,6 @@ void FmObjectTask::parse_id_type(Value& json_val)
 
 void FmSequetialTask::parse_id_type(Value& json_val)
 {
-  // TODO():
   auto iter = json_val.Begin();
   for (; iter != json_val.End(); iter++) {
     if (iter->IsNull()) {
@@ -682,6 +719,21 @@ void FmAssociativeTask::request_json()
 {
   auto aux = RedisAux::GetRedisAux();
   _jsons = aux->hget_piped(_types, _cids);
+}
+
+bool FromTask::ptask_completed(FTaskQue& tasks)
+{
+  if (!_ptask->_is_completed) {
+    tasks.push(shared_from_this());
+    return false;
+  }
+  return true;
+}
+
+void FromTask::sub_need()
+{
+  std::lock_guard<std::mutex> lock(_need_mutex);
+  --_need;
 }
 
 }  // namespace c2redis

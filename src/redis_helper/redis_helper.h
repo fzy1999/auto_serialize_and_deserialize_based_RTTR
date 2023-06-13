@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 
@@ -51,10 +52,20 @@ class RedisAux
       _pipe = std::make_shared<Pipeline>(_redis->pipeline());
     }
   };
+  class PipeReadLocker
+  {
+   public:
+    explicit PipeReadLocker(std::mutex& mutex) : m_mutex(mutex) { m_mutex.lock(); }
 
+    ~PipeReadLocker() { m_mutex.unlock(); }
+
+   private:
+    std::mutex& m_mutex;
+  };
   static std::shared_ptr<RedisAux> _redis_aux;
   std::shared_ptr<Pipeline> _pipe = nullptr;
   std::shared_ptr<Redis> _redis = nullptr;
+  std::mutex _pipe_read_mutex;
   // TODO(): 加锁, 避免交叉读写
   int pipe_num = 0;
 };
