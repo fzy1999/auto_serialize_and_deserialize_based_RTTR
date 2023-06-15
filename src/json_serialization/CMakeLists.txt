@@ -10,5 +10,5 @@ target_include_directories(json_serializator PUBLIC
             ${PROJECT_SOURCE_DIR}/third_party
             ${PROJECT_SOURCE_DIR}/include
             )
-target_link_libraries(json_serializator profiler unwind)
+# target_link_libraries(json_serializator profiler unwind)
 

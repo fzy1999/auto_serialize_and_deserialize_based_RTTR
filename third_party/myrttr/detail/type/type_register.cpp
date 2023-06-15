@@ -154,7 +154,8 @@ void type_register::metadata(const type& t, std::vector<::rttr::detail::metadata
 {
   auto& vec_to_insert = t.m_type_data->get_metadata();
 
-  // when we insert new items, we want to check first whether a item with same key exist => ignore this data
+  // when we insert new items, we want to check first whether a item with same key exist => ignore
+  // this data
   for (auto& new_item : data) {
     if (type_register_private::get_metadata(new_item, vec_to_insert).is_valid() == false)
       vec_to_insert.emplace_back(std::move(new_item));
@@ -228,17 +229,20 @@ void type_register::register_base_class(const type& derived_type, const base_cla
   }
 
   tmp_sort_vec.emplace_back(base_info.m_base_type, base_info.m_rttr_cast_func);
-  std::sort(tmp_sort_vec.begin(), tmp_sort_vec.end(), [](const sorted_pair& left, const sorted_pair& right) {
-    return left.first.get_id() < right.first.get_id();
-  });
+  std::sort(tmp_sort_vec.begin(), tmp_sort_vec.end(),
+            [](const sorted_pair& left, const sorted_pair& right) {
+              return left.first.get_id() < right.first.get_id();
+            });
 
   class_data.m_base_types.clear();
   class_data.m_conversion_list.clear();
 
-  std::transform(tmp_sort_vec.begin(), tmp_sort_vec.end(), std::back_inserter(class_data.m_base_types),
+  std::transform(tmp_sort_vec.begin(), tmp_sort_vec.end(),
+                 std::back_inserter(class_data.m_base_types),
                  [](const sorted_pair& item) -> type { return item.first; });
 
-  std::transform(tmp_sort_vec.begin(), tmp_sort_vec.end(), std::back_inserter(class_data.m_conversion_list),
+  std::transform(tmp_sort_vec.begin(), tmp_sort_vec.end(),
+                 std::back_inserter(class_data.m_conversion_list),
                  [](const sorted_pair& item) -> rttr_cast_func { return item.second; });
 
   auto r_type = base_info.m_base_type.get_raw_type();
@@ -271,6 +275,20 @@ type_register_private& type_register_private::get_instance()
 {
   static type_register_private obj;
   return obj;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+type type_register_private::get_by_custom_name(string_view custom_name)
+{
+  std::lock_guard<std::mutex> lock(m_mutex);
+
+  auto ret = m_custom_name_to_id.find(custom_name);
+  if (ret != m_custom_name_to_id.end()) {
+    return (*ret);
+  }
+
+  return get_invalid_type();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -344,7 +362,8 @@ bool type_register::register_visit_type_func(type& t, visit_type_func func) RTTR
 /////////////////////////////////////////////////////////////////////////////////////////
 // free static functions
 
-static bool rotate_char_when_whitespace_before(std::string& text, std::string::size_type& pos, char c)
+static bool rotate_char_when_whitespace_before(std::string& text, std::string::size_type& pos,
+                                               char c)
 {
   auto result = text.find(c, pos);
   if (result != std::string::npos && result > 0) {
@@ -440,8 +459,9 @@ static std::vector<type> convert_param_list(const array_range<parameter_info>& p
 template <typename T>
 static array_range<T> get_items_for_type(const type& t, const std::vector<T>& vec)
 {
-  return array_range<T>(vec.data(), vec.size(),
-                        detail::default_predicate<T>([t](const T& item) { return (item.get_declaring_type() == t); }));
+  return array_range<T>(vec.data(), vec.size(), detail::default_predicate<T>([t](const T& item) {
+                          return (item.get_declaring_type() == t);
+                        }));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -451,7 +471,9 @@ static bool remove_container_item(T& container, const I& item)
 {
   bool result = false;
   container.erase(std::remove_if(container.begin(), container.end(),
-                                 [&item, &result](I& item_) { return (item_ == item) ? (result = true) : false; }),
+                                 [&item, &result](I& item_) {
+                                   return (item_ == item) ? (result = true) : false;
+                                 }),
                   container.end());
 
   return result;
@@ -500,11 +522,13 @@ void type_register_private::register_base_class_info(type_data* info)
     }
   }
 
-  // sort the base classes after it registration index, that means the root class is always the first in the list,
-  // followed by its derived classes, here it depends on the order of RTTR_ENABLE(CLASS)
-  std::sort(base_classes.begin(), base_classes.end(), [](const base_class_info& left, const base_class_info& right) {
-    return left.m_base_type.is_base_of(right.m_base_type);
-  });
+  // sort the base classes after it registration index, that means the root class is always the
+  // first in the list, followed by its derived classes, here it depends on the order of
+  // RTTR_ENABLE(CLASS)
+  std::sort(base_classes.begin(), base_classes.end(),
+            [](const base_class_info& left, const base_class_info& right) {
+              return left.m_base_type.is_base_of(right.m_base_type);
+            });
 
   if (!base_classes.empty()) {
     auto& class_data = info->m_class_data;
@@ -553,26 +577,29 @@ type_data* type_register_private::register_type(type_data* info) RTTR_NOEXCEPT
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-void type_register_private::remove_derived_types_from_base_classes(type& t, const std::vector<type>& base_types)
+void type_register_private::remove_derived_types_from_base_classes(
+    type& t, const std::vector<type>& base_types)
 {
   // here we get from all base types, the derived types list and remove the given type "t"
   for (auto data : base_types) {
     auto& class_data = data.m_type_data->m_class_data;
     auto& derived_types = class_data.m_derived_types;
-    derived_types.erase(
-        std::remove_if(derived_types.begin(), derived_types.end(), [t](type derived_t) { return derived_t == t; }));
+    derived_types.erase(std::remove_if(derived_types.begin(), derived_types.end(),
+                                       [t](type derived_t) { return derived_t == t; }));
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-void type_register_private::remove_base_types_from_derived_classes(type& t, const std::vector<type>& derived_types)
+void type_register_private::remove_base_types_from_derived_classes(
+    type& t, const std::vector<type>& derived_types)
 {
   // here we get from all base types, the derived types list and remove the given type "t"
   for (auto data : derived_types) {
     auto& class_data = data.m_type_data->m_class_data;
     auto& base_types = class_data.m_base_types;
-    base_types.erase(std::remove_if(base_types.begin(), base_types.end(), [t](type base_t) { return base_t == t; }));
+    base_types.erase(std::remove_if(base_types.begin(), base_types.end(),
+                                    [t](type base_t) { return base_t == t; }));
   }
 }
 
@@ -580,16 +607,18 @@ void type_register_private::remove_base_types_from_derived_classes(type& t, cons
 
 void type_register_private::unregister_type(type_data* info) RTTR_NOEXCEPT
 {
-  // REMARK: the base_types has to be provided as argument explicitely and cannot be retrieve via the type_data itself,
-  // because the `class_data` which holds the base_types information cannot be retrieve via the function
-  // `get_class_data` anymore because the containing std::unique_ptr is already destroyed
+  // REMARK: the base_types has to be provided as argument explicitely and cannot be retrieve via
+  // the type_data itself, because the `class_data` which holds the base_types information cannot be
+  // retrieve via the function `get_class_data` anymore because the containing std::unique_ptr is
+  // already destroyed
   std::lock_guard<std::mutex> lock(m_mutex);
 
   bool found_type_data = false;
 
   m_type_data_storage.erase(std::remove_if(m_type_data_storage.begin(), m_type_data_storage.end(),
                                            [&found_type_data, info](type_data* data) {
-                                             return (data == info) ? (found_type_data = true) : false;
+                                             return (data == info) ? (found_type_data = true)
+                                                                   : false;
                                            }),
                             m_type_data_storage.end());
 
@@ -686,7 +715,8 @@ void type_register_private::register_custom_name(type& t, string_view custom_nam
 
   update_custom_name(custom_name.to_string(), t);
 
-  // we have to make a copy of the list, because we also perform an insertion with 'update_custom_name'
+  // we have to make a copy of the list, because we also perform an insertion with
+  // 'update_custom_name'
   auto tmp_type_list = m_custom_name_to_id.value_data();
   for (auto& tt : tmp_type_list) {
     if (tt == t || tt.get_raw_type() == tt)
@@ -839,10 +869,12 @@ property type_register_private::get_type_property(const type& t, string_view nam
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-method type_register_private::get_type_method(const type& t, string_view name, const std::vector<type>& type_list)
+method type_register_private::get_type_method(const type& t, string_view name,
+                                              const std::vector<type>& type_list)
 {
   for (const auto& meth : get_items_for_type(t, t.m_type_data->m_class_data.m_methods)) {
-    if (meth.get_name() == name && compare_with_type_list::compare(meth.get_parameter_infos(), type_list)) {
+    if (meth.get_name() == name
+        && compare_with_type_list::compare(meth.get_parameter_infos(), type_list)) {
       return meth;
     }
   }
@@ -861,9 +893,11 @@ void type_register_private::update_class_list(const type& t, T item_ptr)
   auto item_range = get_items_for_type(t, all_class_items);
   detail::remove_cv_ref_t<decltype(all_class_items)> item_vec(item_range.begin(), item_range.end());
   all_class_items.reserve(all_class_items.size() + 1);
-  all_class_items.clear();  // this will not reduce the capacity, i.e. new memory allocation may not necessary
+  all_class_items
+      .clear();  // this will not reduce the capacity, i.e. new memory allocation may not necessary
   for (const auto& base_type : t.get_base_classes()) {
-    auto base_properties = get_items_for_type(base_type, base_type.m_type_data->m_class_data.*item_ptr);
+    auto base_properties
+        = get_items_for_type(base_type, base_type.m_type_data->m_class_data.*item_ptr);
     if (base_properties.empty())
       continue;
 
@@ -896,7 +930,8 @@ bool type_register_private::register_converter(const type_converter_base* conver
 
   using vec_value_type = data_container<const type_converter_base*>;
   m_type_converter_list.push_back({t.get_id(), converter});
-  std::stable_sort(m_type_converter_list.begin(), m_type_converter_list.end(), vec_value_type::order_by_id());
+  std::stable_sort(m_type_converter_list.begin(), m_type_converter_list.end(),
+                   vec_value_type::order_by_id());
   return true;
 }
 
@@ -925,7 +960,8 @@ bool type_register_private::unregister_converter(const type_converter_base* conv
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-const type_converter_base* type_register_private::get_converter(const type& source_type, const type& target_type)
+const type_converter_base* type_register_private::get_converter(const type& source_type,
+                                                                const type& target_type)
 {
   const auto src_id = source_type.get_id();
   const auto target_id = target_type.get_id();
@@ -962,11 +998,13 @@ const type_comparator_base* type_register_private::get_less_than_comparator(cons
 
 const type_comparator_base* type_register_private::get_type_comparator_impl(
     const type& t,
-    const std::vector<type_register_private::data_container<const type_comparator_base*>>& comparator_list)
+    const std::vector<type_register_private::data_container<const type_comparator_base*>>&
+        comparator_list)
 {
   using vec_value_type = data_container<const type_comparator_base*>;
   const auto id = t.get_id();
-  auto itr = std::lower_bound(comparator_list.cbegin(), comparator_list.cend(), id, vec_value_type::order_by_id());
+  auto itr = std::lower_bound(comparator_list.cbegin(), comparator_list.cend(), id,
+                              vec_value_type::order_by_id());
   if (itr != comparator_list.cend() && itr->m_id == id)
     return itr->m_data;
   else

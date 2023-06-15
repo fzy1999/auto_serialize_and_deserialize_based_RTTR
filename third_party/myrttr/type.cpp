@@ -211,8 +211,8 @@ property type::get_property(string_view name) const RTTR_NOEXCEPT
   // properties are ordered from base to derived
   // use reverse iterator to find the most-derived propertie
   // when searching instance registry by name
-  auto ret
-      = std::find_if(vec.crbegin(), vec.crend(), [name](const property& item) { return (item.get_name() == name); });
+  auto ret = std::find_if(vec.crbegin(), vec.crend(),
+                          [name](const property& item) { return (item.get_name() == name); });
   if (ret != vec.crend())
     return *ret;
 
@@ -256,7 +256,8 @@ array_range<property> type::get_properties() const RTTR_NOEXCEPT
 {
   auto& vec = get_raw_type().m_type_data->m_class_data.m_properties;
   if (!vec.empty()) {
-    return array_range<property>(vec.data(), vec.size(), detail::default_predicate<property>([](const property& prop) {
+    return array_range<property>(vec.data(), vec.size(),
+                                 detail::default_predicate<property>([](const property& prop) {
                                    return (prop.get_access_level() == access_levels::public_access);
                                  }));
   }
@@ -271,7 +272,8 @@ array_range<property> type::get_properties(filter_items filter) const RTTR_NOEXC
   const auto raw_t = get_raw_type();
   auto& vec = raw_t.m_type_data->m_class_data.m_properties;
   if (!vec.empty())
-    return array_range<property>(vec.data(), vec.size(), detail::get_filter_predicate<property>(raw_t, filter));
+    return array_range<property>(vec.data(), vec.size(),
+                                 detail::get_filter_predicate<property>(raw_t, filter));
 
   return array_range<property>();
 }
@@ -285,7 +287,8 @@ method type::get_method(string_view name) const RTTR_NOEXCEPT
   // methods appear are ordered from base to derived
   // use reverse iterator to find the most-derived method
   // when searching instance registry by name
-  auto ret = std::find_if(vec.crbegin(), vec.crend(), [name](const method& item) { return (item.get_name() == name); });
+  auto ret = std::find_if(vec.crbegin(), vec.crend(),
+                          [name](const method& item) { return (item.get_name() == name); });
   if (ret != vec.crend())
     return *ret;
 
@@ -300,7 +303,8 @@ method type::get_method(string_view name, const std::vector<type>& type_list) co
   const auto& methvec = raw_t.m_type_data->m_class_data.m_methods;
   for (auto mit = methvec.crbegin(); mit != methvec.crend(); ++mit) {
     const auto& meth = *mit;
-    if (meth.get_name() == name && detail::compare_with_type_list::compare(meth.get_parameter_infos(), type_list)) {
+    if (meth.get_name() == name
+        && detail::compare_with_type_list::compare(meth.get_parameter_infos(), type_list)) {
       return meth;
     }
   }
@@ -315,7 +319,8 @@ array_range<method> type::get_methods() const RTTR_NOEXCEPT
   const auto raw_t = get_raw_type();
   auto& vec = raw_t.m_type_data->m_class_data.m_methods;
   if (!vec.empty()) {
-    return array_range<method>(vec.data(), vec.size(), detail::default_predicate<method>([](const method& meth) {
+    return array_range<method>(vec.data(), vec.size(),
+                               detail::default_predicate<method>([](const method& meth) {
                                  return (meth.get_access_level() == access_levels::public_access);
                                }));
   }
@@ -330,7 +335,8 @@ array_range<method> type::get_methods(filter_items filter) const RTTR_NOEXCEPT
   const auto raw_t = get_raw_type();
   auto& vec = raw_t.m_type_data->m_class_data.m_methods;
   if (!vec.empty())
-    return array_range<method>(vec.data(), vec.size(), detail::get_filter_predicate<method>(raw_t, filter));
+    return array_range<method>(vec.data(), vec.size(),
+                               detail::get_filter_predicate<method>(raw_t, filter));
 
   return array_range<method>();
 }
@@ -413,7 +419,8 @@ variant type::invoke(string_view name, instance obj, std::vector<argument> args)
   const auto& methvec = raw_t.m_type_data->m_class_data.m_methods;
   for (auto mit = methvec.crbegin(); mit != methvec.crend(); ++mit) {
     const auto& meth = *mit;
-    if (meth.get_name() == name && detail::compare_with_arg_list::compare(meth.get_parameter_infos(), args)) {
+    if (meth.get_name() == name
+        && detail::compare_with_arg_list::compare(meth.get_parameter_infos(), args)) {
       return meth.invoke_variadic(obj, args);
     }
   }
@@ -444,19 +451,22 @@ variant type::invoke(string_view name, std::vector<argument> args)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+// made it thread safe
 type type::get_by_name(string_view name) RTTR_NOEXCEPT
 {
-  auto& custom_name_to_id = detail::type_register_private::get_instance().get_custom_name_to_id();
-  auto ret = custom_name_to_id.find(name);
-  if (ret != custom_name_to_id.end())
-    return (*ret);
+  // auto& custom_name_to_id =
+  // detail::type_register_private::get_instance().get_custom_name_to_id(); auto ret =
+  // custom_name_to_id.find(name); if (ret != custom_name_to_id.end())
+  //   return (*ret);
 
-  return detail::get_invalid_type();
+  // return detail::get_invalid_type();
+  return detail::type_register_private::get_instance().get_by_custom_name(name);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-const detail::type_converter_base* type::get_type_converter(const type& target_type) const RTTR_NOEXCEPT
+const detail::type_converter_base* type::get_type_converter(const type& target_type) const
+    RTTR_NOEXCEPT
 {
   return detail::type_register_private::get_instance().get_converter(*this, target_type);
 }
@@ -494,10 +504,11 @@ array_range<constructor> type::get_constructors() const RTTR_NOEXCEPT
 {
   auto& ctors = m_type_data->m_class_data.m_ctors;
   if (!ctors.empty()) {
-    return array_range<constructor>(ctors.data(), ctors.size(),
-                                    detail::default_predicate<constructor>([](const constructor& ctor) {
-                                      return (ctor.get_access_level() == access_levels::public_access);
-                                    }));
+    return array_range<constructor>(
+        ctors.data(), ctors.size(),
+        detail::default_predicate<constructor>([](const constructor& ctor) {
+          return (ctor.get_access_level() == access_levels::public_access);
+        }));
   }
 
   return array_range<constructor>();

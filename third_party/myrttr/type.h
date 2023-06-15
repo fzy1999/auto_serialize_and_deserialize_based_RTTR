@@ -33,6 +33,7 @@
 #include "myrttr/array_range.h"
 #include "myrttr/filter_item.h"
 
+#include <mutex>
 #include <type_traits>
 #include <vector>
 #include <string>
@@ -93,14 +94,14 @@ RTTR_LOCAL RTTR_INLINE type get_type_from_instance(const T*) RTTR_NOEXCEPT;
  * The \ref type class holds the type information for any arbitrary object.
  *
  * Every class or primitive data type can have an unique type object.
- * With the help of this object you can compare unknown types for equality at runtime or introspect the type
- * for its \ref property "properties", \ref method "methods", \ref enumeration "enumerations",
- * \ref constructor "constructors" and \ref destructor "destructor".
+ * With the help of this object you can compare unknown types for equality at runtime or introspect
+ * the type for its \ref property "properties", \ref method "methods", \ref enumeration
+ * "enumerations", \ref constructor "constructors" and \ref destructor "destructor".
  *
  * Retrieve %type
  * ------------------
- * A type object **cannot** be created. It is only possible to retrieve a type object via three static template member
- * functions:
+ * A type object **cannot** be created. It is only possible to retrieve a type object via three
+ * static template member functions:
  *
  * ### type::get<T>() ###
  *
@@ -113,21 +114,22 @@ RTTR_LOCAL RTTR_INLINE type get_type_from_instance(const T*) RTTR_NOEXCEPT;
  *
  * ### type::get_by_name(string_view) ###
  *
- * This function just expects the name of the type. This is useful when you know only the name of the type and cannot
- * include the type itself into the source code.
+ * This function just expects the name of the type. This is useful when you know only the name of
+ * the type and cannot include the type itself into the source code.
  *
  * \code{.cpp}
  *      type::get_by_name("int")  == type::get<int>(); // yields to true
  *      type::get_by_name("bool") == type::get<int>(); // yields to false
- *      type::get_by_name("MyNameSpace::MyStruct") == type::get<MyNameSpace::MyStruct>();  // yields to true
- * \endcode
+ *      type::get_by_name("MyNameSpace::MyStruct") == type::get<MyNameSpace::MyStruct>();  // yields
+ * to true \endcode
  *
- * \remark Before using the function \ref type::get_by_name(), you have to use one time the function via \ref
- * type::get<T>(), otherwise the type is not registered in the type system.
+ * \remark Before using the function \ref type::get_by_name(), you have to use one time the function
+ * via \ref type::get<T>(), otherwise the type is not registered in the type system.
  *
  * ### type::get<T>(T&& obj) ###
  *
- * This function takes a universal reference and returns from every given object the corresponding type object.
+ * This function takes a universal reference and returns from every given object the corresponding
+ * type object.
  *
  * \code{.cpp}
  *      int int_obj;
@@ -157,8 +159,8 @@ RTTR_LOCAL RTTR_INLINE type get_type_from_instance(const T*) RTTR_NOEXCEPT;
  *      type::get<Base*>()     == type::get(base_ptr);  // yields to true
  * \endcode
  *
- * \remark If the type of the expression is a cv-qualified type, the result of the rttr::type::get expression refers to
- * a rttr::type object representing the cv-unqualified type.
+ * \remark If the type of the expression is a cv-qualified type, the result of the rttr::type::get
+ * expression refers to a rttr::type object representing the cv-unqualified type.
  *
  * \code{.cpp}
  *      class D { ... };
@@ -175,8 +177,8 @@ RTTR_LOCAL RTTR_INLINE type get_type_from_instance(const T*) RTTR_NOEXCEPT;
  *
  * Copying and Assignment
  * ----------------------
- * A \ref type object is lightweight and can be copied by value. However, each copy will refer to the same underlying
- * type.
+ * A \ref type object is lightweight and can be copied by value. However, each copy will refer to
+ * the same underlying type.
  *
  */
 class RTTR_API type
@@ -298,8 +300,8 @@ class RTTR_API type
    *   wrapped_type == type::get<int>(); // yields to true
    * \endcode
    *
-   * \remark When the current type is not a wrapper type, this function will return an \ref type::is_valid "invalid
-   * type".
+   * \remark When the current type is not a wrapper type, this function will return an \ref
+   * type::is_valid "invalid type".
    *
    * \see \ref wrapper_mapper "wrapper_mapper<T>"
    *
@@ -318,10 +320,10 @@ class RTTR_API type
   /*!
    * \brief Returns a type object for the given instance \a object.
    *
-   * \remark If the type of the expression is a cv-qualified type, the result of the type::get() expression refers to a
-   *         type object representing the cv-unqualified type.
-   *         When type::get() is applied to a glvalue expression whose type is a polymorphic class type,
-   *         the result refers to a type object representing the type of the most derived object.
+   * \remark If the type of the expression is a cv-qualified type, the result of the type::get()
+   * expression refers to a type object representing the cv-unqualified type. When type::get() is
+   * applied to a glvalue expression whose type is a polymorphic class type, the result refers to a
+   * type object representing the type of the most derived object.
    *
    * \return type for an \a object of type \a T.
    */
@@ -332,9 +334,9 @@ class RTTR_API type
    * \brief Returns the type object with the given name \p name.
    *
    * \remark The search for the type is case sensitive. White spaces will be ignored.
-   *         The name of the type corresponds to the name which was used during \ref RTTR_REGISTRATION.
-   *         Only after the registration process was executed, then the type can be retrieved with this function.
-   *         Otherwise and invalid type will be returned.
+   *         The name of the type corresponds to the name which was used during \ref
+   * RTTR_REGISTRATION. Only after the registration process was executed, then the type can be
+   * retrieved with this function. Otherwise and invalid type will be returned.
    *
    * \return \ref type object with the name \p name.
    */
@@ -350,7 +352,8 @@ class RTTR_API type
   static array_range<type> get_types() RTTR_NOEXCEPT;
 
   /*!
-   * \brief Returns the size in bytes of the object representation of the current type (i.e. `sizeof(T)`).
+   * \brief Returns the size in bytes of the object representation of the current type (i.e.
+   * `sizeof(T)`).
    *
    * \return The size of the type in bytes.
    */
@@ -432,8 +435,9 @@ class RTTR_API type
    *        - \p `std::weak_ptr<T>`
    *        - \p `std::unique_ptr<T>`
    *
-   *        In order to work with custom wrapper types, its required to specialize the class \ref wrapper_mapper
-   * "wrapper_mapper<T>" and implement a getter function to retrieve the encapsulate type.
+   *        In order to work with custom wrapper types, its required to specialize the class \ref
+   * wrapper_mapper "wrapper_mapper<T>" and implement a getter function to retrieve the encapsulate
+   * type.
    *
    * \see \ref wrapper_mapper "wrapper_mapper<T>"
    *
@@ -461,7 +465,8 @@ class RTTR_API type
 
   /*!
    * \brief Returns true whether the given type represents an
-   *        <a target="_blank" href=https://en.wikipedia.org/wiki/Associative_containers>associative container</a>.
+   *        <a target="_blank" href=https://en.wikipedia.org/wiki/Associative_containers>associative
+   * container</a>.
    *
    * \return True if the type is an associative container, otherwise false.
    *
@@ -471,7 +476,8 @@ class RTTR_API type
 
   /*!
    * \brief Returns true whether the given type represents an
-   *        <a target="_blank" href=https://en.wikipedia.org/wiki/Sequence_container_(C%2B%2B)>sequence container</a>.
+   *        <a target="_blank"
+   * href=https://en.wikipedia.org/wiki/Sequence_container_(C%2B%2B)>sequence container</a>.
    *
    * \return True if the type is an sequential container, otherwise false.
    *
@@ -544,7 +550,8 @@ class RTTR_API type
   bool is_derived_from() const RTTR_NOEXCEPT;
 
   /*!
-   * \brief Returns true if this type is the base class from the given type \p other, otherwise false.
+   * \brief Returns true if this type is the base class from the given type \p other, otherwise
+   * false.
    *
    * \remark Make sure that the complete class hierarchy has the macro RTTR_ENABLE
    *         inside the class declaration, otherwise the returned information of this function
@@ -610,17 +617,19 @@ class RTTR_API type
    *
    * \remark When no parameter list is given, it will be searched for the default constructor.
    *
-   * \return A valid constructor will be returned when the parameter matches the registered constructor;
-   *         otherwise an invalid constructor.
+   * \return A valid constructor will be returned when the parameter matches the registered
+   * constructor; otherwise an invalid constructor.
    */
-  constructor get_constructor(const std::vector<type>& params = std::vector<type>()) const RTTR_NOEXCEPT;
+  constructor get_constructor(const std::vector<type>& params
+                              = std::vector<type>()) const RTTR_NOEXCEPT;
 
   /*!
    * \brief Returns a range of all registered *public* constructors for this type.
    *
-   * \remark In order to retrieve *private* constructors, use \ref type::get_constructors(filter_items) const
-   *         with following filter combination `filter_item::instance_item | filter_item::static_item |
-   * filter_item::non_public_access` The constructors are sorted after its order of registration.
+   * \remark In order to retrieve *private* constructors, use \ref
+   * type::get_constructors(filter_items) const with following filter combination
+   * `filter_item::instance_item | filter_item::static_item | filter_item::non_public_access` The
+   * constructors are sorted after its order of registration.
    *
    * \return A range of constructors.
    */
@@ -630,7 +639,8 @@ class RTTR_API type
    * \brief Returns a range of all registered constructors for this type,
    *        based on the given \p filter. The base classes are **not** included in the search.
    *
-   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range of constructors.
+   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range
+   * of constructors.
    *
    * See following example code:
    * \code{.cpp}
@@ -654,19 +664,21 @@ class RTTR_API type
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& ctor : t.get_constructors(filter_item::instance_item | filter_item::non_public_access))
-   *         std::cout << ctor.get_signature() << ", "; // prints "my_struct( bool ),"
+   *     for (auto& ctor : t.get_constructors(filter_item::instance_item |
+   * filter_item::non_public_access)) std::cout << ctor.get_signature() << ", "; // prints
+   * "my_struct( bool ),"
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& ctor : t.get_constructors(filter_item::static_item | filter_item::non_public_access))
-   *         std::cout << ctor.get_signature() << ", "; // prints "my_struct( bool ),"
+   *     for (auto& ctor : t.get_constructors(filter_item::static_item |
+   * filter_item::non_public_access)) std::cout << ctor.get_signature() << ", "; // prints
+   * "my_struct( bool ),"
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& ctor : t.get_constructors(filter_item::instance_item | filter_item::public_access |
-   * filter_item::declared_only)) std::cout << ctor.get_signature() << std::endl; // prints "my_struct( ), my_struct(
-   * int ),"
+   *     for (auto& ctor : t.get_constructors(filter_item::instance_item |
+   * filter_item::public_access | filter_item::declared_only)) std::cout << ctor.get_signature() <<
+   * std::endl; // prints "my_struct( ), my_struct( int ),"
    *
    *     return 0;
    * }
@@ -679,10 +691,11 @@ class RTTR_API type
   array_range<constructor> get_constructors(filter_items filter) const RTTR_NOEXCEPT;
 
   /*!
-   * \brief Creates an instance of the current type, with the given arguments \p args for the constructor.
+   * \brief Creates an instance of the current type, with the given arguments \p args for the
+   * constructor.
    *
-   * \remark When the argument types does not match the parameter list of the constructor then the he will not be
-   * invoked. Constructors with registered \ref default_arguments will be honored.
+   * \remark When the argument types does not match the parameter list of the constructor then the
+   * he will not be invoked. Constructors with registered \ref default_arguments will be honored.
    *
    * \return Returns an instance of the given type.
    */
@@ -691,8 +704,8 @@ class RTTR_API type
   /*!
    * \brief Returns the corresponding destructor for this type.
    *
-   * \remark When there is no constructor registered for this type, then also the destructor is not available.
-   *        A destructor will always been automatically registered.
+   * \remark When there is no constructor registered for this type, then also the destructor is not
+   * available. A destructor will always been automatically registered.
    *
    * \return Returns the destructor for this type.
    */
@@ -701,8 +714,8 @@ class RTTR_API type
   /*!
    * \brief Destroys the contained object in the variant \p obj.
    *
-   * \remark When the \p obj could be destroyed the given \p obj is invalid after calling this method;
-   *         Otherwise it is still valid.
+   * \remark When the \p obj could be destroyed the given \p obj is invalid after calling this
+   * method; Otherwise it is still valid.
    *
    * \return True if the destructor of the object could be invoked, otherwise false.
    */
@@ -711,7 +724,8 @@ class RTTR_API type
   /*!
    * \brief Returns a property with the name \p name.
    *
-   * \remark When there exists no property with the name \p name, then an invalid property is returned.
+   * \remark When there exists no property with the name \p name, then an invalid property is
+   * returned.
    *
    * \return A property with name \p name.
    */
@@ -721,9 +735,9 @@ class RTTR_API type
    * \brief Returns a range of all registered *public* properties for this type and
    *        all its base classes.
    *
-   * \remark In order to retrieve *private* properties, use \ref type::get_properties(filter_items) const
-   *         with following filter combination `filter_item::instance_item | filter_item::static_item |
-   * filter_item::non_public_access` The properties are sorted after its order of registration.
+   * \remark In order to retrieve *private* properties, use \ref type::get_properties(filter_items)
+   * const with following filter combination `filter_item::instance_item | filter_item::static_item
+   * | filter_item::non_public_access` The properties are sorted after its order of registration.
    *
    * \return A range of properties.
    */
@@ -733,7 +747,8 @@ class RTTR_API type
    * \brief Returns a range of all registered properties for this type,
    *        based on the given \p filter. The base classes are included in the search.
    *
-   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range of properties.
+   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range
+   * of properties.
    *
    * See following example code:
    * \code{.cpp}
@@ -761,18 +776,18 @@ class RTTR_API type
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& prop : t.get_properties(filter_item::instance_item | filter_item::non_public_access))
-   *         std::cout << meth.get_name() << ", "; // prints "p2,"
+   *     for (auto& prop : t.get_properties(filter_item::instance_item |
+   * filter_item::non_public_access)) std::cout << meth.get_name() << ", "; // prints "p2,"
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& prop : t.get_properties(filter_item::static_item | filter_item::non_public_access))
-   *         std::cout << meth.get_name() << ", "; // prints "p4,"
+   *     for (auto& prop : t.get_properties(filter_item::static_item |
+   * filter_item::non_public_access)) std::cout << meth.get_name() << ", "; // prints "p4,"
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& prop : t.get_properties(filter_item::instance_item | filter_item::public_access |
-   * filter_item::declared_only)) std::cout << meth.get_name() << ", "; // prints "p3"
+   *     for (auto& prop : t.get_properties(filter_item::instance_item | filter_item::public_access
+   * | filter_item::declared_only)) std::cout << meth.get_name() << ", "; // prints "p3"
    *
    *     return 0;
    * }
@@ -787,7 +802,8 @@ class RTTR_API type
   /*!
    * \brief Returns a global property with the name \p name.
    *
-   * \remark When there exists no property with the name \p name, then an invalid property is returned.
+   * \remark When there exists no property with the name \p name, then an invalid property is
+   * returned.
    *
    * \return A property with name \p name.
    */
@@ -807,7 +823,8 @@ class RTTR_API type
   /*!
    * \brief Returns the property value of property named \p name from the instance \p obj.
    *
-   * \remark When the given instance is empty, the value of global property will be tryed to returned.
+   * \remark When the given instance is empty, the value of global property will be tryed to
+   * returned.
    *
    * \return A variant containing the value of the property.
    */
@@ -821,9 +838,11 @@ class RTTR_API type
   static variant get_property_value(string_view name);
 
   /*!
-   * \brief This function will set the given value \p arg to a property named \p name to the instance \p obj.
+   * \brief This function will set the given value \p arg to a property named \p name to the
+   * instance \p obj.
    *
-   * \remark When the given instance is empty, the value of a global property with name \p name will be tryed to set.
+   * \remark When the given instance is empty, the value of a global property with name \p name will
+   * be tryed to set.
    *
    * \return A bool value, which is true, when the value could be set, otherwise false.
    */
@@ -846,10 +865,11 @@ class RTTR_API type
   method get_method(string_view name) const RTTR_NOEXCEPT;
 
   /*!
-   * \brief Returns a method with the name \p name which match the given parameter type list \p type_list.
+   * \brief Returns a method with the name \p name which match the given parameter type list \p
+   * type_list.
    *
-   * \remark When there exists no method with the name \p name and matching parameter type list \p type_list,
-   *         then an invalid method is returned.
+   * \remark When there exists no method with the name \p name and matching parameter type list \p
+   * type_list, then an invalid method is returned.
    *
    * \return A method with name \p name.
    */
@@ -860,8 +880,9 @@ class RTTR_API type
    *        all its base classes.
    *
    * \remark In order to retrieve *private* methods, use \ref type::get_methods(filter_items) const
-   *         with following filter combination `filter_item::instance_item | filter_item::static_item |
-   * filter_item::non_public_access` The methods are sorted after its order of registration.
+   *         with following filter combination `filter_item::instance_item |
+   * filter_item::static_item | filter_item::non_public_access` The methods are sorted after its
+   * order of registration.
    *
    * \return A range of methods.
    */
@@ -871,7 +892,8 @@ class RTTR_API type
    * \brief Returns a range of all registered methods for this type,
    *        based on the given \p filter. The base classes are included in the search.
    *
-   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range of methods.
+   * Combine the enum values inside \ref filter_item with the OR operator to return a certain range
+   * of methods.
    *
    * See following example code:
    * \code{.cpp}
@@ -899,8 +921,8 @@ class RTTR_API type
    *
    *     std::cout << std::endl;
    *
-   *     for (auto& meth : t.get_methods(filter_item::instance_item | filter_item::non_public_access))
-   *         std::cout << meth.get_name() << ", "; // prints "func_2,"
+   *     for (auto& meth : t.get_methods(filter_item::instance_item |
+   * filter_item::non_public_access)) std::cout << meth.get_name() << ", "; // prints "func_2,"
    *
    *     std::cout << std::endl;
    *
@@ -932,10 +954,11 @@ class RTTR_API type
   static method get_global_method(string_view name) RTTR_NOEXCEPT;
 
   /*!
-   * \brief Returns a global method with the name \p name which match the given parameter list \p params.
+   * \brief Returns a global method with the name \p name which match the given parameter list \p
+   * params.
    *
-   * \remark When there exists no method with the name \p name and matching parameter list \p params,
-   *         then an invalid method is returned.
+   * \remark When there exists no method with the name \p name and matching parameter list \p
+   * params, then an invalid method is returned.
    *
    * \return A method with name \p name and parameter signature \p params.
    */
@@ -1016,9 +1039,9 @@ class RTTR_API type
    *   // register the conversion functions
    *   type::register_wrapper_converter_for_base_classes<std::shared_ptr<derived>>();
    *
-   *   var.convert(type::get<std::shared_ptr<base>>());    // yields to `true`, derived to base conversion
-   *   var.convert(type::get<std::shared_ptr<derived>>()); // yields to `true`, base to derived conversion
-   *  \endcode
+   *   var.convert(type::get<std::shared_ptr<base>>());    // yields to `true`, derived to base
+   * conversion var.convert(type::get<std::shared_ptr<derived>>()); // yields to `true`, base to
+   * derived conversion \endcode
    *
    * \see variant::convert(), \ref wrapper_mapper "wrapper_mapper<T>"
    */
@@ -1124,28 +1147,31 @@ class RTTR_API type
    * \brief This function try to convert the given pointer \p ptr from the type \p source_type
    *        to the target type \p target_type.
    *
-   * \remark The returned pointer is always the raw type of \p target_type. You do not have to use this function by your
-   * own.
+   * \remark The returned pointer is always the raw type of \p target_type. You do not have to use
+   * this function by your own.
    *
    * \return Returns the converted pointer; when the conversion fails is a null pointer is returned.
    */
-  static void* apply_offset(void* ptr, const type& source_type, const type& target_type) RTTR_NOEXCEPT;
+  static void* apply_offset(void* ptr, const type& source_type,
+                            const type& target_type) RTTR_NOEXCEPT;
 
   /*!
-   * \brief This function returns the most derived type for the given object \p ptr of type \p source_type.
+   * \brief This function returns the most derived type for the given object \p ptr of type \p
+   * source_type.
    *
    * \return Returns the most derived type for the given instance \p ptr.
    */
   static type get_derived_type(void* ptr, const type& source_type) RTTR_NOEXCEPT;
 
   /*!
-   * \brief When for the current type instance a converter function to type \p target_type was registered,
-   *        then this function returns a valid pointer to a type_converter_base object.
+   * \brief When for the current type instance a converter function to type \p target_type was
+   * registered, then this function returns a valid pointer to a type_converter_base object.
    *        Otherwise this function returns a `nullptr`.
    *
    * \see register_converter_func()
    */
-  const detail::type_converter_base* get_type_converter(const type& target_type) const RTTR_NOEXCEPT;
+  const detail::type_converter_base* get_type_converter(const type& target_type) const
+      RTTR_NOEXCEPT;
 
   /*!
    * \brief When for the current type instance a equal comparator function was registered,

@@ -22,6 +22,9 @@
 #include "rapidjson/document.h"
 #include <gperftools/profiler.h>
 namespace c2redis {
+// Architecture for globle use
+static Architecture arc;
+
 bool is_optional(const type& t)
 {
   return t.get_name().to_string().find("optional") != string::npos;
@@ -140,19 +143,24 @@ static void create_push_task(const string& propname, Value& json_value, const FT
 void FromTask::create_sequential_task(const string& propname, rttr::variant& var, Value& json_value,
                                       FTaskQue& tasks)
 {
+  if (json_value.Size() == 0) {
+    return;
+  }
   auto view = var.create_sequential_view();
+
   const type array_value_type = view.get_rank_type(1);
-  if (get_wrapped(array_value_type).is_pointer()) {
+  auto wrapped_t = get_wrapped(array_value_type);
+  if (wrapped_t.is_pointer() || wrapped_t.is_class()) {
+    add_need();
     auto prop_task = std::make_shared<FmSequetialTask>(propname, shared_from_this());
-    prop_task->parse_id_type(json_value);
+    prop_task->_level = _level;
+    if (wrapped_t.is_pointer()) {
+      prop_task->parse_id_type(json_value);
+    } else {
+      prop_task->_json_object.CopyFrom(json_value, prop_task->_json_object.GetAllocator());
+    }
     prop_task->_pvar = std::make_shared<variant>(std::move(var));
     tasks.push(prop_task);
-  } else if (get_wrapped(array_value_type).is_class()) {
-    auto prop_task = std::make_shared<FmSequetialTask>(propname, shared_from_this());
-    prop_task->_json_object.CopyFrom(json_value, prop_task->_json_object.GetAllocator());
-    prop_task->_pvar = std::make_shared<variant>(std::move(var));
-    tasks.push(prop_task);
-    // todo
   } else {
     view.set_size(json_value.Size());
     for (SizeType i = 0; i < json_value.Size(); ++i) {
@@ -162,9 +170,6 @@ void FromTask::create_sequential_task(const string& propname, rttr::variant& var
 
         auto sub_array = view.get_value(i);
         create_sequential_task(propname, sub_array, json_index_value, tasks);
-      } else if (json_index_value.IsObject()) {
-        // auto wrapped_value = view.get_value(i).extract_wrapped_value();
-        // assert(view.set_value(i, wrapped_value));
       } else {
         variant extracted_value = extract_basic_types(json_index_value);
         if (extracted_value.convert(array_value_type)) {
@@ -180,9 +185,14 @@ void FromTask::create_sequential_task(const string& propname, rttr::variant& var
 void FromTask::create_associative_task(const string& propname, rttr::variant& var,
                                        Value& json_value, FTaskQue& tasks)
 {
+  if (json_value.Size() == 0) {
+    return;
+  }
   auto view = var.create_associative_view();
   if (get_wrapped(view.get_value_type()).is_pointer()) {
+    add_need();
     auto prop_task = std::make_shared<FmAssociativeTask>(propname, shared_from_this());
+    prop_task->_level = _level;
     prop_task->parse_id_type(json_value);
     prop_task->_pvar = std::make_shared<variant>(std::move(var));
     tasks.push(prop_task);
@@ -224,18 +234,19 @@ void FromTask::prealloc(const instance& obj2, Value& json_object, FTaskQue& task
   const auto prop_list = obj.get_derived_type().get_properties();
   auto fname = obj.get_type().get_name().to_string();
   for (auto prop : prop_list) {
+    auto prop_name = prop.get_name().to_string();
+    if (!arc.is_picked_arch(_level, prop_name)) {
+      continue;
+    }
     Value::MemberIterator ret = json_object.FindMember(prop.get_name().data());
     if (ret == json_object.MemberEnd()) {
       continue;
     }
-    auto tname = prop.get_type().get_name().to_string();  // debug
     const type value_t = prop.get_type();
     auto& json_value = ret->value;
-    auto prop_name = prop.get_name().to_string();
     switch (json_value.GetType()) {
       case kArrayType: {
         variant var = prop.get_value(obj);
-        // TODO(): add muti thread
         if (value_t.is_sequential_container()) {
           // sequential
           create_sequential_task(prop_name, var, json_value, tasks);
@@ -246,9 +257,9 @@ void FromTask::prealloc(const instance& obj2, Value& json_object, FTaskQue& task
         break;
       }
       case kObjectType: {
+        add_need();
         variant var = prop.get_value(obj);  // TODO(): removable
         auto prop_task = std::make_shared<FmObjectTask>(prop_name, shared_from_this());
-
         if (get_wrapped(var.get_type()).is_pointer()) {
           // create_push_task<FmObjectTask>(prop_name, json_value, shared_from_this(), tasks);
           prop_task->parse_id_type(json_value);
@@ -256,10 +267,8 @@ void FromTask::prealloc(const instance& obj2, Value& json_object, FTaskQue& task
           prop_task->_json_object.CopyFrom(json_value, prop_task->_json_object.GetAllocator());
           prop_task->_raw_type = get_wrapped(prop.get_type()).get_raw_type().get_name().to_string();
           prop_task->_pvar = std::make_shared<variant>(std::move(var));
-          // prop_task->_pvar = std::make_shared<variant>(std::move(var));
-          // assert(prop.set_value(obj, var));
         }
-        _need++;
+        prop_task->_level = _level + 1;
         tasks.push(prop_task);
         break;
       }
@@ -343,7 +352,7 @@ bool FmSequetialTask::set_value(const shared_ptr<variant>& pvar, int index)
     ok = _view.set_value(index, *pvar);
   }
   sub_need();
-  if (_need == 0) {
+  if (need_satisfied()) {
     assemble_to_parent();
   }
   return ok;
@@ -375,7 +384,7 @@ bool FmObjectTask::set_value(const shared_ptr<variant>& pvar, const string& prop
   exvar.convert(prop.get_type());
   auto ok = prop.set_value(inst, exvar);
   sub_need();
-  if (_need == 0) {
+  if (need_satisfied()) {
     assemble_to_parent();
   }
   return ok;
@@ -387,6 +396,10 @@ bool FmObjectTask::set_value_raw_ptr(void* pvar, const string& prop_name)
   instance inst(*_pvar);
   auto prop = get_wrapped(inst).get_type().get_property(prop_name);
   auto ok = prop.set_value_raw_ptr(inst, pvar);
+  sub_need();
+  if (need_satisfied()) {
+    assemble_to_parent();
+  }
   return ok;
 }
 
@@ -401,7 +414,7 @@ bool FmAssociativeTask::set_kv(const shared_ptr<variant>& pvar, const string& ke
     setok = ok;
   }
   sub_need();
-  if (_need == 0) {
+  if (need_satisfied()) {
     assemble_to_parent();
   }
   return setok;
@@ -441,9 +454,16 @@ void TaskResumer::alloc_all(const instance& inst, const string& cid)
 
 void FromRedis::operator()(const instance& inst, const string& cid)
 {
-  ProfilerStart("batch_from.prof");
+  // ProfilerStart("batch_from.prof");
   resumer.alloc_all(inst, cid);
-  ProfilerStop();
+  // ProfilerStop();
+}
+
+void FromRedis::operator()(const instance& inst, const string& cid, vector<string> achi)
+{
+  arc._construction = std::move(achi);
+  arc._ceil = arc._construction.size();
+  resumer.alloc_all(inst, cid);
 }
 
 // only for root class
@@ -473,8 +493,8 @@ void FmObjectTask::collect(FTaskQue& tasks)
         std::cerr << "error in document.Parse\n";
       }
       auto var = type::get_by_name(_raw_type).create();
+      prealloc(var, json_object, tasks);
       _pvar = std::make_shared<variant>(std::move(var));
-      prealloc(*_pvar, json_object, tasks);
     } else {
       // for only when this task is root, to set with raw ptr
       _ptask->assemble_to_parent(_parent, _prop_name);
@@ -485,11 +505,9 @@ void FmObjectTask::collect(FTaskQue& tasks)
       _pvar = _ptask->_pvar;
     }
   } else {
-    // auto var = type::get_by_name(_raw_type).create();
-    // _pvar = std::make_shared<variant>(std::move(var));
     prealloc(*_pvar, _json_object, tasks);
   }
-  if (_need == 0) {
+  if (need_satisfied()) {
     assemble_to_parent();
   }
   free_all();
@@ -505,8 +523,8 @@ void FmSequetialObjectTask::collect(FTaskQue& tasks)
         std::cerr << "error in document.Parse\n";
       }
       auto var = type::get_by_name(_raw_type).create();
+      prealloc(var, json_object, tasks);
       _pvar = std::make_shared<variant>(std::move(var));
-      prealloc(*_pvar, json_object, tasks);
     } else {
       // bug: not support root
       if (!ptask_completed(tasks)) {
@@ -519,7 +537,8 @@ void FmSequetialObjectTask::collect(FTaskQue& tasks)
   }
   // nullptr? or root?
   assert(_pvar);
-  if (_need == 0) {
+  assert(_pvar->is_valid());
+  if (need_satisfied()) {
     assemble_to_parent();
   }
   free_all();
@@ -530,19 +549,21 @@ void FmSequetialTask::collect(FTaskQue& tasks)
   _view = _pvar->create_sequential_view();
   if (_json_object.IsNull()) {
     // pointer
-    // TODO(): 先请求, 重复请求了?
     request_json();
 
     _view.set_size(_jsons.size());
+    // ok without lock
     _need = _jsons.size();
     size_t i = 0;
     for (const auto& json : _jsons) {
       // assert(json != std::nullopt);
       if (json.empty()) {
+        std::cerr << " json empty in FmSequetialTask: " << _types[i] << i << "\n";
         auto ok = set_value(nullptr, i);
         continue;
       }
       auto prop_task = std::make_shared<FmSequetialObjectTask>(i, shared_from_this());
+      prop_task->_level = _level + 1;
       prop_task->_cid = _cids[i];
       prop_task->_raw_type = _types[i];
       prop_task->_json = json;
@@ -574,6 +595,7 @@ void FmAssociativeTask::collect(FTaskQue& tasks)
   size_t i = 0;
   for (const auto& json : _jsons) {
     auto prop_task = std::make_shared<FmAssociativeObjectTask>(_keys[i], shared_from_this());
+    prop_task->_level = _level + 1;
     prop_task->_cid = _cids[i];
     prop_task->_raw_type = _types[i];
     prop_task->_json = json;
@@ -730,10 +752,22 @@ bool FromTask::ptask_completed(FTaskQue& tasks)
   return true;
 }
 
-void FromTask::sub_need()
+inline void FromTask::sub_need()
 {
   std::lock_guard<std::mutex> lock(_need_mutex);
   --_need;
+}
+
+inline void FromTask::add_need()
+{
+  std::lock_guard<std::mutex> lock(_need_mutex);
+  ++_need;
+}
+
+inline bool FromTask::need_satisfied()
+{
+  std::lock_guard<std::mutex> lock(_need_mutex);
+  return _need == 0;
 }
 
 }  // namespace c2redis

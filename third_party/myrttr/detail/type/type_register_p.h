@@ -64,6 +64,7 @@ struct type_data;
 class RTTR_LOCAL type_register_private
 {
  public:
+  type get_by_custom_name(string_view custom_name);
   /////////////////////////////////////////////////////////////////////////////////////
   void register_reg_manager(registration_manager* manager);
   void unregister_reg_manager(registration_manager* manager);
@@ -130,12 +131,16 @@ class RTTR_LOCAL type_register_private
   type_register_private();
   ~type_register_private();
 
-  template <typename T, typename Data_Type = conditional_t<std::is_pointer<T>::value, T, std::unique_ptr<T>>>
+  template <typename T,
+            typename Data_Type = conditional_t<std::is_pointer<T>::value, T, std::unique_ptr<T>>>
   struct data_container
   {
     data_container(type::type_id id) : m_id(id) {}
     data_container(type::type_id id, Data_Type data) : m_id(id), m_data(std::move(data)) {}
-    data_container(data_container<T, Data_Type>&& other) : m_id(other.m_id), m_data(std::move(other.m_data)) {}
+    data_container(data_container<T, Data_Type>&& other)
+        : m_id(other.m_id), m_data(std::move(other.m_data))
+    {
+    }
     data_container<T, Data_Type>& operator=(data_container<T, Data_Type>&& other)
     {
       m_id = other.m_id;
@@ -145,7 +150,8 @@ class RTTR_LOCAL type_register_private
 
     struct order_by_id
     {
-      RTTR_INLINE bool operator()(const data_container<T>& _left, const data_container<T>& _right) const
+      RTTR_INLINE bool operator()(const data_container<T>& _left,
+                                  const data_container<T>& _right) const
       {
         return _left.m_id < _right.m_id;
       }
@@ -168,13 +174,16 @@ class RTTR_LOCAL type_register_private
     Data_Type m_data;
   };
 
-  static bool register_comparator_impl(const type& t, const type_comparator_base* comparator,
-                                       std::vector<data_container<const type_comparator_base*>>& comparator_list);
+  static bool register_comparator_impl(
+      const type& t, const type_comparator_base* comparator,
+      std::vector<data_container<const type_comparator_base*>>& comparator_list);
   static const type_comparator_base* get_type_comparator_impl(
-      const type& t, const std::vector<data_container<const type_comparator_base*>>& comparator_list);
+      const type& t,
+      const std::vector<data_container<const type_comparator_base*>>& comparator_list);
 
   static ::rttr::property get_type_property(const type& t, string_view name);
-  static ::rttr::method get_type_method(const type& t, string_view name, const std::vector<type>& type_list);
+  static ::rttr::method get_type_method(const type& t, string_view name,
+                                        const std::vector<type>& type_list);
 
   template <typename T>
   static void update_class_list(const type& t, T item_ptr);
@@ -184,9 +193,10 @@ class RTTR_LOCAL type_register_private
   type_data* register_name_if_neccessary(type_data* info);
   static void register_base_class_info(type_data* info);
   /*!
-   * \brief This will create the derived name of a template instance, with all the custom names of a template parameter.
-   * e.g.: `std::reference_wrapper<class std::basic_string<char,struct std::char_traits<char>,class std::allocator<char>
-   * > >` => `std::reference_wrapper<class std::string>`
+   * \brief This will create the derived name of a template instance, with all the custom names of a
+   * template parameter. e.g.: `std::reference_wrapper<class std::basic_string<char,struct
+   * std::char_traits<char>,class std::allocator<char> > >` => `std::reference_wrapper<class
+   * std::string>`
    *
    */
   static std::string derive_template_instance_name(type_data* info);

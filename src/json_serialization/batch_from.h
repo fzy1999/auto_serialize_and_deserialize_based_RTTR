@@ -36,9 +36,18 @@ struct FTaskQue;
 using FTASK_PTR = shared_ptr<FromTask>;
 struct Architecture
 {
-  int _level = 0;
-  int _ceil = 0;
+  Architecture(size_t _ceil = 0, vector<string> construct = {})
+      : _ceil(_ceil), _construction(std::move(construct)){};
+  size_t _ceil;
   vector<string> _construction;
+
+  constexpr bool is_picked_arch(size_t level, const string& prop_name)
+  {
+    if (level < _ceil) {
+      return prop_name == _construction[level];
+    }
+    return true;
+  }
 };
 
 class FromTask : public std::enable_shared_from_this<FromTask>
@@ -60,8 +69,11 @@ class FromTask : public std::enable_shared_from_this<FromTask>
   std::mutex _need_mutex;
   Document _json_object;
   bool _is_completed = false;
+  int _level = 0;
 
   void sub_need();
+  void add_need();
+  bool need_satisfied();
   variant extract_basic_types(Value& json_value);
   virtual void request_json(){};
   virtual void collect(FTaskQue& tasks){};
@@ -259,7 +271,6 @@ class TaskResumer
   }
 
  private:
-  Architecture _archi;
   FTaskQue _tasks;
   size_t _running_count = 0;
   std::mutex _count_mutex;
@@ -269,6 +280,7 @@ class FromRedis
 {
  public:
   void operator()(const instance& inst, const string& cid);
+  void operator()(const instance& inst, const string& cid, vector<string> achi);
 
  private:
   TaskResumer resumer;
