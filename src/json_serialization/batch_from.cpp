@@ -459,7 +459,7 @@ void FromRedis::operator()(const instance& inst, const string& cid)
   // ProfilerStop();
 }
 
-void FromRedis::operator()(const instance& inst, const string& cid, vector<string> achi)
+void FromRedis::operator()(const instance& inst, const string& cid, vector<vector<string>> achi)
 {
   arc._construction = std::move(achi);
   arc._ceil = arc._construction.size();

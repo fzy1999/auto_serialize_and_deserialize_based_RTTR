@@ -3,9 +3,11 @@ Language:        Cpp
 BasedOnStyle:  Google
 
 ColumnLimit: 100
+ContinuationIndentWidth: 4
+AlignOperands: true
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
-AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false

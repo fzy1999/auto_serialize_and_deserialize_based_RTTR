@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -36,15 +37,20 @@ struct FTaskQue;
 using FTASK_PTR = shared_ptr<FromTask>;
 struct Architecture
 {
-  Architecture(size_t _ceil = 0, vector<string> construct = {})
+  Architecture(size_t _ceil = 0, vector<vector<string>> construct = {})
       : _ceil(_ceil), _construction(std::move(construct)){};
   size_t _ceil;
-  vector<string> _construction;
+  vector<vector<string>> _construction;
 
   constexpr bool is_picked_arch(size_t level, const string& prop_name)
   {
     if (level < _ceil) {
-      return prop_name == _construction[level];
+      for (const auto& floor : _construction[level]) {
+        if (prop_name == floor) {
+          return true;
+        }
+      }
+      return false;
     }
     return true;
   }
@@ -280,7 +286,7 @@ class FromRedis
 {
  public:
   void operator()(const instance& inst, const string& cid);
-  void operator()(const instance& inst, const string& cid, vector<string> achi);
+  void operator()(const instance& inst, const string& cid, vector<vector<string>> achi);
 
  private:
   TaskResumer resumer;
