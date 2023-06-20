@@ -5,7 +5,6 @@ add_library(redis_helper ${SRC})
 #<------------ add hiredis dependency here --------------->
 find_path(HIREDIS_HEADER hiredis)
 target_include_directories(redis_helper PUBLIC ${HIREDIS_HEADER})
-message("---- " ${HIREDIS_LIB})
 find_library(HIREDIS_LIB hiredis)
 target_link_libraries(redis_helper ${HIREDIS_LIB})
 

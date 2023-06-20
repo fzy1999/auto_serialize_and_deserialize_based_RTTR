@@ -310,6 +310,7 @@ void FmObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string& pr
 void FmSequetialTask::assemble_to_parent()
 {
   _parent->set_value(_pvar, _prop_name);
+  _pvar = nullptr;
 }
 
 // void FmSequetialObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string&
@@ -332,6 +333,7 @@ void FmAssociativeObjectTask::assemble_to_parent()
 void FmAssociativeTask::assemble_to_parent()
 {
   _parent->set_value(_pvar, _prop_name);
+  _pvar = nullptr;
 }
 
 // check if already restored
@@ -480,7 +482,7 @@ void FmRootTaks::collect(FTaskQue& tasks)
   free_all();
 }
 
-// restoring for object. aka pointer
+// restoring for object.
 void FmObjectTask::collect(FTaskQue& tasks)
 {
   if (_json_object.IsNull()) {
@@ -554,10 +556,10 @@ void FmSequetialTask::collect(FTaskQue& tasks)
     _view.set_size(_jsons.size());
     // ok without lock
     _need = _jsons.size();
-    size_t i = 0;
-    for (const auto& json : _jsons) {
+    for (size_t i = 0; i < _jsons.size(); ++i) {
       // assert(json != std::nullopt);
-      if (json.empty()) {
+
+      if (_jsons[i].empty()) {
         std::cerr << " json empty in FmSequetialTask: " << _types[i] << i << "\n";
         auto ok = set_value(nullptr, i);
         continue;
@@ -566,8 +568,7 @@ void FmSequetialTask::collect(FTaskQue& tasks)
       prop_task->_level = _level + 1;
       prop_task->_cid = _cids[i];
       prop_task->_raw_type = _types[i];
-      prop_task->_json = json;
-      ++i;
+      prop_task->_json = _jsons[i];
       tasks.push(prop_task);
     }
   } else {

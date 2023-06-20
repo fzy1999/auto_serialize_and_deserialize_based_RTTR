@@ -27,8 +27,8 @@
 
 project(rttr LANGUAGES CXX)
 
-message(STATUS "Scanning "  ${PROJECT_NAME} " module.")
-message(STATUS "===========================")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+
 
 # loadFolder("rttr" HPP_FILES SRC_FILES BUILD_INSTALLER)
 

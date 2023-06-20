@@ -11,14 +11,18 @@
 
 namespace c2redis {
 
-auto duration = [](auto s, auto e) {
-  return std::chrono::duration_cast<std::chrono::seconds>(e - s).count();
-};
 using rttr::instance;
 using rttr::type;
 const size_t VP_LEN = 8;
 using ID_TYPE = std::optional<std::string>;
 const ID_TYPE NULL_ID = "";
+
+inline long duration(std::chrono::time_point<std::chrono::high_resolution_clock> begin,
+                     std::chrono::time_point<std::chrono::high_resolution_clock> end)
+{
+  return std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
+}
+
 struct NullHolder
 {
 };
