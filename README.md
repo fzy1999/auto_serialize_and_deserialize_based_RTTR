@@ -16,5 +16,8 @@
 1. 自动注册, 不需要插入代码
 2. 支持模板自动注册
 3. optional string array
-4. bug in batch from: 不支持多层数组(map)中包含带指针的object
-5. muti thread
+4. bug in batch from: 不支持多层数组(map)中包含带指针的object (done)
+5. muti thread  (done)
+6. associaltive 和sequential 不能提前释放var, 会有些析构函数没法处理; 原始数据结构先释放, 再进行赋值
+7. 直接使用普通指针保存数据, 指针直接赋值指针, 值使用拷贝? 
+8. 从反射库底层进行处理, 自己维护类的map

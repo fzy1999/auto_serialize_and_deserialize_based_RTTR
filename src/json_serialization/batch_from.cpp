@@ -310,7 +310,7 @@ void FmObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string& pr
 void FmSequetialTask::assemble_to_parent()
 {
   _parent->set_value(_pvar, _prop_name);
-  _pvar = nullptr;
+  // _pvar = nullptr;
 }
 
 // void FmSequetialObjectTask::assemble_to_parent(const FTASK_PTR& pparent, const string&
@@ -333,7 +333,7 @@ void FmAssociativeObjectTask::assemble_to_parent()
 void FmAssociativeTask::assemble_to_parent()
 {
   _parent->set_value(_pvar, _prop_name);
-  _pvar = nullptr;
+  // _pvar = nullptr;
 }
 
 // check if already restored
